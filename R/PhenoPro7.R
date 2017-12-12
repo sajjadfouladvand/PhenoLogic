@@ -999,6 +999,46 @@ plot.cvPheno <- function(object){
 	gg <- gg + theme(legend.key.width = unit(1, "cm"))
 	gg
 }
+BlockSplit <- function(x, blockName, label, discard = FALSE){
+  Name1 <- blockName[1]
+  Name2 <- blockName[2]
+  LabelLevel <- as.vector(unique(x[[label]]))
+  blockNameMerge <- paste(as.vector(x[[Name1]]), as.vector(x[[Name2]]), sep = "")
+  x$blockNameMerge <- blockNameMerge
+  x$idTemp <- seq(nrow(x))
+  x$NewBlockNameOne <- as.vector(x[[Name1]])
+  x$NewBlockNameTwo <- as.vector(x[[Name2]])
+  blockVector <- as.vector(unique(x$blockNameMerge))
+  index <- 1
+  for(i in seq(length(blockVector))){
+    xTemp <- subset(x, blockNameMerge == blockVector[i])
+    if(length(as.vector(unique(xTemp[[label]]))) != 1){
+      number1 <- length(which(xTemp[[label]] == LabelLevel[1]))
+      number2 <- length(which(xTemp[[label]] == LabelLevel[2]))
+      if(number1 >= number2){
+        idToChange <- (xTemp[which(xTemp[[label]] == LabelLevel[2]),])$idTemp
+        x$NewBlockNameOne[idToChange] <- "NEW_BLOCK_NAME_X"
+        indexTemp <- paste("NEW_BLOCK_NAME_Y", index, sep = "_")
+        x$NewBlockNameTwo[idToChange] <- rep(indexTemp, times = length(idToChange))
+      } else{
+        idToChange <- (xTemp[which(xTemp[[label]] == LabelLevel[1]),])$idTemp
+        x$NewBlockNameOne[idToChange] <- "NEW_BLOCK_NAME_X"
+        indexTemp <- paste("NEW_BLOCK_NAME_Y", index, sep = "_")
+        x$NewBlockNameTwo[idToChange] <- rep(indexTemp, times = length(idToChange))
+      }
+      index <- index + 1
+    }
+  }
+  x$NewBlockNameTwo <- as.character(x$NewBlockNameTwo)
+  dropnames <- names(x) %in% c("idTemp", "blockNameMerge")
+  y <- x[!dropnames]
+  if(discard == TRUE){
+    res <- y[- which(y$NewBlockNameOne == "NEW_BLOCK_NAME_X"), ]
+    return(res)
+  } else{
+    return(y)
+  }
+}
 
 
 require(ggplot2)
