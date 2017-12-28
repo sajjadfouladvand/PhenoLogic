@@ -712,7 +712,7 @@ plot.Pheno <- function(object){
 		}
 	}
 }
-
+ 
 predict.Pheno <- function(object, data, x, y,
 	block, orderby, step = 1, width = 6){
 
