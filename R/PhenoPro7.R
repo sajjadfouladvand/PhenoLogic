@@ -543,8 +543,38 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
 
 		  WorkingDataTempPCA <- subset(BayesianData, select = c(topFeatureNames,
 			"Label"))
-    }
-    else if(feature_selection=="lmFuncs" || feature_selection=="nbFuncs" || feature_selection=="rfFuncs" || feature_selection=="treebagFuncs")
+    }else if(feature_selection =="NA")
+		{
+      #*******************************************************
+      #Added by Sajjad Fouladvand
+
+      WorkingDataTempPCA<-BayesianData #subset(BayesianData, select = c(lmProfile$optVariables,
+                                       #                   "Label"))
+      topFeatureNames<-as.vector(colnames(BayesianData))#lmProfile$optVariables
+      topFeatureNames<-topFeatureNames[1:length(topFeatureNames)-1]
+      #fullFeatureNames <- as.vector(featureTemp$feaNams)
+      fullFeatureNames <- as.vector(colnames(BayesianData))
+      fullFeatureNames <- fullFeatureNames[1:length(fullFeatureNames)-1]
+      topNameSplit <- strsplit(topFeatureNames, "_")
+      topFeatureFullNames <- c()
+      for(i in seq(length(topFeatureNames))){
+        topFeatureFullNames <- c(topNameSplit[[i]][1], topNameSplit[[i]][2],
+                                 topFeatureFullNames)
+      }
+      topFeatureFullNames <- unique(as.vector(topFeatureFullNames))
+
+      fullNameSplit <- strsplit(fullFeatureNames, "_")
+      fullFeatureFullNames <- c()
+      for(i in seq(length(fullFeatureNames))){
+        fullFeatureFullNames <- c(fullNameSplit[[i]][1], fullNameSplit[[i]][2],
+                                  fullFeatureFullNames)
+      }
+      fullFeatureFullNames <- unique(as.vector(fullFeatureFullNames))
+      # End of added by Sajjad Fouladvand
+
+
+      #*******************************************************
+    }else if(feature_selection=="lmFuncs" || feature_selection=="nbFuncs" || feature_selection=="rfFuncs" || feature_selection=="treebagFuncs")
 		{
       library(caret)
       library(mlbench)
@@ -583,7 +613,7 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
 		  topFeatureNames<-lmProfile$optVariables
 		  #fullFeatureNames <- as.vector(featureTemp$feaNams)
 		  fullFeatureNames <- as.vector(colnames(BayesianData))
-
+		  fullFeatureNames <- fullFeatureNames[1:length(fullFeatureNames)-1]
 		  topNameSplit <- strsplit(topFeatureNames, "_")
 		  topFeatureFullNames <- c()
 		  for(i in seq(length(topFeatureNames))){
@@ -618,8 +648,12 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     numComp <- numberPCA
     fea <- topFeatureNames
     selected_features=NULL
-  }
-	else{
+  }else if(feature_selection=="NA"){
+    resPCA <- NULL
+    numComp = NULL
+    fea <- topFeatureNames
+    selected_features <- topFeatureNames
+  }	else{
 	  resPCA <- NULL
 	  numComp = NULL
 	  fea <- lmProfile$optVariables
@@ -712,7 +746,7 @@ plot.Pheno <- function(object){
 		}
 	}
 }
- 
+
 predict.Pheno <- function(object, data, x, y,
 	block, orderby, step = 1, width = 6){
 
@@ -999,6 +1033,7 @@ plot.cvPheno <- function(object){
 	gg <- gg + theme(legend.key.width = unit(1, "cm"))
 	gg
 }
+#Added by Sajjad
 BlockSplit <- function(x, blockName, label, discard = FALSE){
   Name1 <- blockName[1]
   Name2 <- blockName[2]
@@ -1039,7 +1074,165 @@ BlockSplit <- function(x, blockName, label, discard = FALSE){
     return(y)
   }
 }
+#Added by Sajjad
+test.pheno<-function(WorkingData=NULL, block=NULL, label=NULL, orderby=NULL, step=1, width=6, method="SVM",defaultLabel=NULL, blockNamesONE=NULL, blockNamesTWO=NULL, topFeatureFullNames=NULL, topFeatureNames=NULL, x=NULL, y=NULL, feaf=NULL, fea=NULL, cvNumber=10, testBlockProp=0.2, prior=TRUE){
+  #WorkingData <- object$Raw
+  #argumentsDataTemp <- object$arg
+  #block <- argumentsDataTemp$block
+  #label <- argumentsDataTemp$label
+  #orderby <- argumentsDataTemp$orderby
+  #step <- argumentsDataTemp$step
+  #width <- argumentsDataTemp$width
+  #method <- argumentsDataTemp$method
+  #defaultLabel <- argumentsDataTemp$defaultLabel
+  #blockNamesONE <- argumentsDataTemp$blockNamesONE
+  #blockNamesTWO <- argumentsDataTemp$blockNamesTWO
 
+  #topFeatureFullNames <- object$feaf
+  #topFeatureNames <- object$fea
+  #valueTransferData_test <- PhenoPro7::TransferData(data, x, y, label, block, orderby)
+  x_temp<- x
+  y_temp <- y
+  #x <- intersect(argumentsDataTemp$x, topFeatureFullNames)
+  #y <- intersect(argumentsDataTemp$y, topFeatureFullNames)
+  x <- intersect(x_temp, topFeatureFullNames)
+  y <- intersect(y_temp, topFeatureFullNames)
+  blockUniqueNames <- unique(WorkingData[[block]])
+  blockOrderedNames <- mixedsort(blockUniqueNames)
+  labelUniqueNames <- unique(WorkingData[[label]])
+  defaultLabelUniqueNames <- defaultLabel
+  inverseLabel <- labelUniqueNames[- which(labelUniqueNames == defaultLabel)]
+
+  splitDatabyBlock <- split(WorkingData, as.vector(WorkingData[[block]]))
+  FUNALLEQU <- function(x, label){
+    return(!any(x[[label]] != x[[label]][1]))
+  }
+  FUNLABEL <- function(x, label){
+    return(x[[label]][1])
+  }
+  if(!all(sapply(splitDatabyBlock, FUNALLEQU, label = label, simplify = TRUE)))
+    stop("data in some 'block' have multiple 'label'")
+  blockOrderedLabels <- as.vector(sapply(splitDatabyBlock, FUNLABEL,
+                                         label = label, simplify = TRUE))
+
+  WorkingDataSub <- subset(WorkingData,
+                           select = c(x, y, label, block, orderby))
+  features <- c(x, y)
+  inicvNumber <- 1
+  outputTable <- data.frame(matrix(0, length(blockUniqueNames), 3))
+  rownames(outputTable) <- blockOrderedNames
+  colnames(outputTable) <- c("performance", "precision", "recall")
+  outputTableTemp <- outputTable
+  countTable <- rep(0, length(blockUniqueNames))
+  while(inicvNumber <= cvNumber){  # The data will be devided into train and test set, a model will be created based on the train part and will be tested based on the test part
+    # if(inicvNumber==4){
+    #   print("sssss");
+    # }
+    cat("computing ", inicvNumber, "\r")
+    valueSplitData <- SplitData(WorkingDataSub, block, orderby,
+                                testBlockProp, blockOrderedLabels, blockOrderedNames)  # Here the data is divided to train and test data
+    dataSplitData <- valueSplitData$data
+    trainData <- dataSplitData$train
+    testData <- dataSplitData$test
+    testName <- dataSplitData$testName
+
+    trainDataTemp <- subset(trainData, select = c(features, label))
+    if(length(unique(trainDataTemp[,ncol(trainDataTemp)]))<length(labelUniqueNames)){
+      print("Warning: One step of cross validation is skiped; there aren't data from all classes")
+      inicvNumber<-inicvNumber+1
+      next
+    }
+    objectlist <- list(WorkingDataTemp = trainDataTemp, step = step,
+                       width = width, label = label, x = x, y = y,
+                       labelUniqueNames = labelUniqueNames)
+
+    trainBayesianData <- BayesianNIGProcess(objectlist)$Beta
+    trainBayesianDataTemp <- subset(trainBayesianData,
+                                    select = c(topFeatureNames, "Label"))
+
+    testDataTemp <- subset(testData, select = c(features, label))
+    if(length(unique(trainDataTemp[,ncol(trainDataTemp)]))<length(labelUniqueNames)){
+      print("Warning: One step of cross validation is skiped; there aren't data from all classes")
+      inicvNumber<-inicvNumber+1
+      next
+    }
+    if(prior == TRUE){
+      objectlist <- list(WorkingDataTemp = testDataTemp, step = step,
+                         width = width, label = label, x = x, y = y,
+                         labelUniqueNames = labelUniqueNames)
+      testBayesianData <- BayesianNIGProcess(objectlist)$Beta
+      testBayesianDataTemp <- subset(testBayesianData,
+                                     select = c(topFeatureNames, "Label"))
+      inputData <- subset(testBayesianDataTemp, select = topFeatureNames)
+    } else{
+      objectlist <- list(WorkingDataTemp = testDataTemp, step = step,
+                         width = width, label = NULL, x = x, y = y,
+                         labelUniqueNames = NULL)
+      testBayesianData <- BayesianNIGProcess(objectlist)$Beta
+      testBayesianDataTemp <- data.frame(subset(testBayesianData,
+                                                select = c(topFeatureNames)), Label = testDataTemp[[label]])
+      inputData <- subset(testBayesianDataTemp, select = topFeatureNames)
+    }
+
+    #Added by Sajjad
+    #trainBayesianDataTemp<-subset(trainBayesianData,
+    #                             select = c(object$selected_features, "Label"))
+    #inputData <- subset(inputData, select = object$selected_features)
+    # End of added by Sajjad
+
+    if(method == "RF"){
+      predictData <- randomForest(Label ~ ., data = trainBayesianDataTemp,
+                                  importance = TRUE, proximity = TRUE)
+      par.pred <- predict(predictData, inputData)
+    } else{
+      predictData <- svm(Label ~ ., data = trainBayesianDataTemp)
+      par.pred <- predict(predictData, inputData)
+    }
+
+    DI <- DD <- II <- ID <- 0
+    for(i in seq(length(par.pred))){
+      if(par.pred[i] == testBayesianDataTemp$Label[i]){
+        if(par.pred[i] %in% inverseLabel){
+          II <- II + 1
+        } else{
+          DD <- DD + 1
+        }
+      } else{
+        if(par.pred[i] == defaultLabel){
+          DI <- DI + 1
+        } else{
+          if(testBayesianDataTemp$Label[i] == defaultLabel){
+            ID <- ID + 1
+          }
+        }
+      }
+    }
+    performance <- as.numeric((DD + II) / length(par.pred), 4)
+    recall <- as.numeric(DD / length(which(testBayesianDataTemp$Label == defaultLabel)), 4)
+    precision <- as.numeric(DD / (DD + DI), 4)
+
+    inicvNumber <- inicvNumber + 1
+    rowID <- which(rownames(outputTable) %in% testName)
+    countTable[rowID] <- countTable[rowID] + 1
+    outputTableTemp[rowID, 1] <- outputTableTemp[rowID, 1] +
+      performance
+    outputTableTemp[rowID, 2] <- outputTableTemp[rowID, 2] +
+      precision
+    outputTableTemp[rowID, 3] <- outputTableTemp[rowID, 3] +
+      recall
+  }
+
+  outputTable <- outputTableTemp / countTable
+  returnData <- list(
+    outputTable = outputTable,
+    blockNamesONE = blockNamesONE,
+    blockNamesTWO = blockNamesTWO,
+    topFeatureNames = topFeatureNames
+  )
+  attr(returnData,'class') <- "cvPheno"
+  return(returnData)
+
+}
 
 require(ggplot2)
 require(MASS)
