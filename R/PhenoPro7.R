@@ -132,9 +132,9 @@ SplitData <- function(data, block, orderby,
 	testBlockProp, blockOrderedLabels, blockOrderedNames){
 
 	blockDataFrame <- data.frame(Name = blockOrderedNames,
-		Label = blockOrderedLabels)
+		Label = blockOrderedLabels)                            #blockDataFrame will be a two column data frame: the first column is block name (like A1) and the second is the label (like H)
 
-	splitDatabyLabels <- split(blockDataFrame, as.vector(blockDataFrame$Label))
+	splitDatabyLabels <- split(blockDataFrame, as.vector(blockDataFrame$Label)) #splitDatabyLabels is a list containing seperate blocks based on their labels; for example if labels are H and D the splitDatabyLabels$H shows all blocks with H as their labels
 	countSplitDatabyLabels <- sapply(splitDatabyLabels, nrow, simplify = TRUE)
 	countNamesTemp <- names(countSplitDatabyLabels)
 	countLabelsTemp <- as.vector(countSplitDatabyLabels)
@@ -165,12 +165,12 @@ SplitData <- function(data, block, orderby,
 	return(list(data = returnData))
 }
 
-TransferData <- function(data, x, y, label, block, orderby){
+TransferData <- function(data, x, y, label, block, orderby){  #This function concatenate block[0] and block[1] and add this as a new column named "blockTemp". Finally it returns a subset of data only encluding columns such as : x, y, label, blockTemp, orderby
 
 	# to data frame
 	WorkingData <- as.data.frame(data)
 	WorkingData <- na.omit(WorkingData)
-
+	block_temp <-block
 	# block argument
 	if(is.null(block)){
 		WorkingData$blockTemp <- seq(nrow(WorkingData))
@@ -193,12 +193,12 @@ TransferData <- function(data, x, y, label, block, orderby){
 	# select subset data
 	if(!is.null(label)){
 		WorkingDataSub <- subset(WorkingData, select = c(
-			x, y, label, block, orderby))
+			x, y, label,block_temp, block, orderby))
 		WorkingDataSub <- WorkingDataSub[order(WorkingDataSub[[orderby]],
 			decreasing = FALSE), ]
 	} else{
 		WorkingDataSub <- subset(WorkingData, select = c(
-			x, y, block, orderby))
+			x, y, block_temp,block, orderby))
 		WorkingDataSub <- WorkingDataSub[order(WorkingDataSub[[orderby]],
 			decreasing = FALSE), ]
 	}
@@ -320,55 +320,20 @@ BayesianNIGProcess <- function(object){
 	EstParametersList <- list()
 
 	if(!(is.null(label))){
-		for(i in seq(length(x))){
-			for(j in seq(length(y))){
-				featuresTEMP <- c(x[i], y[j])
-				splitDatabyLabels <- split(WorkingData,
+		for(i in seq(length(x))){         # For every environmental feature in x
+			for(j in seq(length(y))){       # For every phynotype variable in y
+				featuresTEMP <- c(x[i], y[j]) # x[i] and y[j] construct a pair of environmental-phynotype features
+				splitDatabyLabels <- split(WorkingData,  # Splits the data based on the label
 					as.vector(WorkingData[[label]]))
 				splitDataLabelNames <- names(splitDatabyLabels)
 				interceptSplitData <- c()
 				slopeSplitData <- c()
 				labelSplitData <- c()
-			# 	 if(is.null(dim(splitDatabyLabels$S)) || is.null(dim(splitDatabyLabels$M)) || is.null(dim(splitDatabyLabels$N))){
-			# #	   next
-			# 	   print("ddd")
-			# 	 }
-				for(k in seq(length(labelUniqueNames))){
-				  # print("******************")
-				  # print(dim(splitDatabyLabels$S))
-				  # print(dim(splitDatabyLabels$M))
-				  # print(dim(splitDatabyLabels$N))
-		#		  if(labelUniqueNames[k]=='M' && (is.null(dim(splitDatabyLabels$M)))){
-				    #if(is.null(dim(splitDatabyLabels$M))){
-				    #DataTemp<-NULL
-				    #xTemp <- NULL
-				    #yTemp <- NULL
-				    #labelTemp <- NULL
-				    #}
-		#		    next
-		#		  }
-		#		  if(labelUniqueNames[k]=='N' && (is.null(dim(splitDatabyLabels$N)))){
-				   # if(is.null(dim(splitDatabyLabels$N))){
-				  #  DataTemp<-NULL
-				   # xTemp <- NULL
-				  #  yTemp <- NULL
-				  #  labelTemp <- NULL
-				    #}
-		#		    next
-		#		  }
-		#		  if(labelUniqueNames[k]=='S' && (is.null(dim(splitDatabyLabels$S)))){
-				 #   if(is.null(dim(splitDatabyLabels$S))){
-				  #  DataTemp<-NULL
-				  #  xTemp <- NULL
-				   # yTemp <- NULL
-				  #  labelTemp <- NULL
-				#    }
-		#		    next
-			#	  }
-
-					DataTemp <- splitDatabyLabels[[k]]
-					xTemp <- DataTemp[[featuresTEMP[1]]]
-					yTemp <- DataTemp[[featuresTEMP[2]]]
+				blockSplitData <- c()
+				for(k in seq(length(labelUniqueNames))){ # For all possible lables (like for D and H)
+					DataTemp <- splitDatabyLabels[[k]]      # Select all data from a current label; like all data with D as their labels
+					xTemp <- DataTemp[[featuresTEMP[1]]]   # xTemp is one environmental feature of the data like feature "LIGHT"
+					yTemp <- DataTemp[[featuresTEMP[2]]]   # yTemp is one phynotype feature of the data like feature "phi2"
 					labelTemp <- unique(DataTemp[[label]])
 					resultTemp <- BayesNIGEstimate(xTemp, yTemp, step, width)
 					mu <- resultTemp$mu
@@ -388,6 +353,7 @@ BayesianNIGProcess <- function(object){
 					slopeSplitData <- c(slopeSplitData, slopeTemp)
 					labelSplitData <- c(labelSplitData, rep(splitDataLabelNames[k],
 						length(interceptTemp)))
+					blockSplitData <-c(blockSplitData, splitDatabyLabels[[k]]$blockTemp)
 				}
 				BetaTemp <- cbind(interceptSplitData, slopeSplitData)
 				colnames(BetaTemp) <- c(paste(x[i], y[j], "I", sep = "_"),
@@ -396,7 +362,10 @@ BayesianNIGProcess <- function(object){
 			}
 		}
 		Beta <- as.data.frame(Beta)
-		Beta <- data.frame(Beta, Label = labelSplitData)
+		if(is.null(blockSplitData))
+		  Beta <- data.frame(Beta, Label = labelSplitData)
+		else
+		  Beta <- data.frame(Beta, Label = labelSplitData, blockTemp=blockSplitData)
 	} else{
 		for(i in seq(length(x))){
 			for(j in seq(length(y))){
@@ -468,7 +437,7 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
 		labelUniqueNames <- unique(WorkingData[[label]]) # LabelUniqueNames includes label values like M, N and S
 
 		features <- c(x, y) # features includes both x and y (i.e. all  environmental and phenotype features
-		WorkingDataTemp <- subset(WorkingData, select = c(features, label)) #WorkingDataTemp includes only environmental and phenotype features and the label
+		WorkingDataTemp <- subset(WorkingData, select = c(features,label)) #WorkingDataTemp includes only environmental and phenotype features and the label
 		OriginalData <- WorkingDataTemp
 #		crossvadalitionData <- WorkingData
 
@@ -661,12 +630,14 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
 
 	}
 	#Added by Sajjad
+	used_blocks <- unique(WorkingData$blockTemp)
 	returnData <- list(
 		Raw = RawData,
 		Org = OriginalData,
 		Bay = BayesianData, # add topFeatureNames as their column names
 		pre = predictData,
 		EST = EstParametersList,
+		used_blocks = used_blocks,
 #		clu = clusterData,
 #		cv = crossvadalitionData,
 		arg = list(label = label, x = x, y = y, method = method,
@@ -1033,7 +1004,7 @@ plot.cvPheno <- function(object){
 	gg <- gg + theme(legend.key.width = unit(1, "cm"))
 	gg
 }
-#Added by Sajjad
+
 BlockSplit <- function(x, blockName, label, discard = FALSE){
   Name1 <- blockName[1]
   Name2 <- blockName[2]
@@ -1074,27 +1045,14 @@ BlockSplit <- function(x, blockName, label, discard = FALSE){
     return(y)
   }
 }
-#Added by Sajjad
-test.pheno<-function(WorkingData=NULL, block=NULL, label=NULL, orderby=NULL, step=1, width=6, method="SVM",defaultLabel=NULL, blockNamesONE=NULL, blockNamesTWO=NULL, topFeatureFullNames=NULL, topFeatureNames=NULL, x=NULL, y=NULL, feaf=NULL, fea=NULL, cvNumber=10, testBlockProp=0.2, prior=TRUE){
-  #WorkingData <- object$Raw
-  #argumentsDataTemp <- object$arg
-  #block <- argumentsDataTemp$block
-  #label <- argumentsDataTemp$label
-  #orderby <- argumentsDataTemp$orderby
-  #step <- argumentsDataTemp$step
-  #width <- argumentsDataTemp$width
-  #method <- argumentsDataTemp$method
-  #defaultLabel <- argumentsDataTemp$defaultLabel
-  #blockNamesONE <- argumentsDataTemp$blockNamesONE
-  #blockNamesTWO <- argumentsDataTemp$blockNamesTWO
 
-  #topFeatureFullNames <- object$feaf
-  #topFeatureNames <- object$fea
-  #valueTransferData_test <- PhenoPro7::TransferData(data, x, y, label, block, orderby)
+test.pheno<-function(WorkingData=NULL, predictive_model=NULL, block=NULL, block_orig= NULL,label=NULL, orderby=NULL, step=1, width=6, method="SVM",defaultLabel=NULL, topFeatureFullNames=NULL, topFeatureNames=NULL, x=NULL, y=NULL, prior=TRUE){
+
+  valueTransferData_test <- PhenoPro7::TransferData(WorkingData, x, y, label, block_orig, orderby)
+  WorkingData<- valueTransferData_test$data
+
   x_temp<- x
   y_temp <- y
-  #x <- intersect(argumentsDataTemp$x, topFeatureFullNames)
-  #y <- intersect(argumentsDataTemp$y, topFeatureFullNames)
   x <- intersect(x_temp, topFeatureFullNames)
   y <- intersect(y_temp, topFeatureFullNames)
   blockUniqueNames <- unique(WorkingData[[block]])
@@ -1103,7 +1061,7 @@ test.pheno<-function(WorkingData=NULL, block=NULL, label=NULL, orderby=NULL, ste
   defaultLabelUniqueNames <- defaultLabel
   inverseLabel <- labelUniqueNames[- which(labelUniqueNames == defaultLabel)]
 
-  splitDatabyBlock <- split(WorkingData, as.vector(WorkingData[[block]]))
+  splitDatabyBlock <- split(WorkingData, as.vector(WorkingData[[block]])) #splitDatabyBlock contains splitted data by blocks
   FUNALLEQU <- function(x, label){
     return(!any(x[[label]] != x[[label]][1]))
   }
@@ -1118,115 +1076,119 @@ test.pheno<-function(WorkingData=NULL, block=NULL, label=NULL, orderby=NULL, ste
   WorkingDataSub <- subset(WorkingData,
                            select = c(x, y, label, block, orderby))
   features <- c(x, y)
-  inicvNumber <- 1
-  outputTable <- data.frame(matrix(0, length(blockUniqueNames), 3))
-  rownames(outputTable) <- blockOrderedNames
-  colnames(outputTable) <- c("performance", "precision", "recall")
-  outputTableTemp <- outputTable
-  countTable <- rep(0, length(blockUniqueNames))
-  while(inicvNumber <= cvNumber){  # The data will be devided into train and test set, a model will be created based on the train part and will be tested based on the test part
-    # if(inicvNumber==4){
-    #   print("sssss");
-    # }
-    cat("computing ", inicvNumber, "\r")
-    valueSplitData <- SplitData(WorkingDataSub, block, orderby,
-                                testBlockProp, blockOrderedLabels, blockOrderedNames)  # Here the data is divided to train and test data
-    dataSplitData <- valueSplitData$data
-    trainData <- dataSplitData$train
-    testData <- dataSplitData$test
-    testName <- dataSplitData$testName
-
-    trainDataTemp <- subset(trainData, select = c(features, label))
-    if(length(unique(trainDataTemp[,ncol(trainDataTemp)]))<length(labelUniqueNames)){
-      print("Warning: One step of cross validation is skiped; there aren't data from all classes")
-      inicvNumber<-inicvNumber+1
-      next
-    }
-    objectlist <- list(WorkingDataTemp = trainDataTemp, step = step,
+  testData <- WorkingDataSub
+  testDataTemp <- subset(testData, select = c(features, block, label))
+  if(length(unique(testDataTemp[,ncol(testDataTemp)]))<length(labelUniqueNames)){
+    print("Warning: One step of cross validation is skiped; there aren't data from all classes")
+    inicvNumber<-inicvNumber+1
+    next
+  }
+  if(prior == TRUE){
+    objectlist <- list(WorkingDataTemp = testDataTemp, step = step,
                        width = width, label = label, x = x, y = y,
                        labelUniqueNames = labelUniqueNames)
-
-    trainBayesianData <- BayesianNIGProcess(objectlist)$Beta
-    trainBayesianDataTemp <- subset(trainBayesianData,
-                                    select = c(topFeatureNames, "Label"))
-
-    testDataTemp <- subset(testData, select = c(features, label))
-    if(length(unique(trainDataTemp[,ncol(trainDataTemp)]))<length(labelUniqueNames)){
-      print("Warning: One step of cross validation is skiped; there aren't data from all classes")
-      inicvNumber<-inicvNumber+1
-      next
-    }
-    if(prior == TRUE){
-      objectlist <- list(WorkingDataTemp = testDataTemp, step = step,
-                         width = width, label = label, x = x, y = y,
-                         labelUniqueNames = labelUniqueNames)
-      testBayesianData <- BayesianNIGProcess(objectlist)$Beta
-      testBayesianDataTemp <- subset(testBayesianData,
-                                     select = c(topFeatureNames, "Label"))
-      inputData <- subset(testBayesianDataTemp, select = topFeatureNames)
-    } else{
-      objectlist <- list(WorkingDataTemp = testDataTemp, step = step,
-                         width = width, label = NULL, x = x, y = y,
-                         labelUniqueNames = NULL)
-      testBayesianData <- BayesianNIGProcess(objectlist)$Beta
-      testBayesianDataTemp <- data.frame(subset(testBayesianData,
-                                                select = c(topFeatureNames)), Label = testDataTemp[[label]])
-      inputData <- subset(testBayesianDataTemp, select = topFeatureNames)
+    testBayesianData <- BayesianNIGProcess(objectlist)$Beta
+    testBayesianDataTemp <- subset(testBayesianData,
+                                   select = c(topFeatureNames, "Label"))
+    inputData <- subset(testBayesianDataTemp, select = topFeatureNames)
+  } else{
+    objectlist <- list(WorkingDataTemp = testDataTemp, step = step,
+                       width = width, label = NULL, x = x, y = y,
+                       labelUniqueNames = NULL)
+    testBayesianData <- BayesianNIGProcess(objectlist)$Beta
+    testBayesianDataTemp <- data.frame(subset(testBayesianData,
+                                              select = c(topFeatureNames)), Label = testDataTemp[[label]])
+    inputData <- subset(testBayesianDataTemp, select = topFeatureNames)
     }
 
-    #Added by Sajjad
-    #trainBayesianDataTemp<-subset(trainBayesianData,
-    #                             select = c(object$selected_features, "Label"))
-    #inputData <- subset(inputData, select = object$selected_features)
-    # End of added by Sajjad
 
-    if(method == "RF"){
-      predictData <- randomForest(Label ~ ., data = trainBayesianDataTemp,
-                                  importance = TRUE, proximity = TRUE)
-      par.pred <- predict(predictData, inputData)
-    } else{
-      predictData <- svm(Label ~ ., data = trainBayesianDataTemp)
-      par.pred <- predict(predictData, inputData)
-    }
+  if(method == "RF"){
+    par.pred <- predict(predictive_model, inputData)
+  } else{
+    par.pred <- predict(predictive_model, inputData)
+  }
+  #block_based_res<-data.frame(matrix(0, nrow = length(blockUniqueNames), ncol = 8)) # Columns are: block name, II, DD, DI, ID, performance, precision and recall
+  #block_based_res[,1]<- blockUniqueNames
+  #colnames(block_based_res)<-c("block_name", "TN", "TP", "FN","FP", "Performance", "Precision", "Recall")
+  #rownames(block_based_res)<- blockUniqueNames
 
-    DI <- DD <- II <- ID <- 0
-    for(i in seq(length(par.pred))){
-      if(par.pred[i] == testBayesianDataTemp$Label[i]){
-        if(par.pred[i] %in% inverseLabel){
-          II <- II + 1
-        } else{
-          DD <- DD + 1
-        }
-      } else{
-        if(par.pred[i] == defaultLabel){
-          DI <- DI + 1
-        } else{
-          if(testBayesianDataTemp$Label[i] == defaultLabel){
-            ID <- ID + 1
-          }
-        }
+  block_based_res<-data.frame(matrix(0, nrow = length(blockUniqueNames), ncol = 5)) # Columns are: block name, II, DD, DI, ID, performance, precision and recall
+  block_based_res[,1]<- blockUniqueNames
+  colnames(block_based_res)<-c("block_name", "TN", "TP", "FN","FP")
+  rownames(block_based_res)<- blockUniqueNames
+
+  TP<-0
+  TN<-0
+  FP<-0
+  FN<-0
+  blocks_labels_preds <-  cbind.data.frame(testBayesianData$blockTemp, testBayesianData$Label, par.pred)
+  colnames(blocks_labels_preds) <- c("blockTemp", "Label", "par.pred")
+
+  for(ind_per in 1:length(blockUniqueNames)){
+    blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
+    block_voted_label <- names(which.max(table(blocks_labels_preds_temp$par.pred)))
+    block_actual_label <- names(which.max(table(blocks_labels_preds_temp$Label)))
+    if(block_voted_label== block_actual_label){
+      if(block_voted_label %in% inverseLabel){
+        TN <- TN+1
+        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,2] <- 1
+      }else{
+        TP<-TP+1
+        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,3] <- 1
+      }
+    }else{
+      if(block_voted_label==defaultLabel){
+        FP <- FP+1
+        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,5] <- 1
+      }else{
+        FN <- FN+1
+        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,4] <- 1
       }
     }
-    performance <- as.numeric((DD + II) / length(par.pred), 4)
-    recall <- as.numeric(DD / length(which(testBayesianDataTemp$Label == defaultLabel)), 4)
-    precision <- as.numeric(DD / (DD + DI), 4)
-
-    inicvNumber <- inicvNumber + 1
-    rowID <- which(rownames(outputTable) %in% testName)
-    countTable[rowID] <- countTable[rowID] + 1
-    outputTableTemp[rowID, 1] <- outputTableTemp[rowID, 1] +
-      performance
-    outputTableTemp[rowID, 2] <- outputTableTemp[rowID, 2] +
-      precision
-    outputTableTemp[rowID, 3] <- outputTableTemp[rowID, 3] +
-      recall
   }
+  performance_t <- (TP+TN)/(TP+TN+FP+FN)
+  precision_t <- (TP)/(TP+FP)
+  recall_t<- (TP)/(TP+FN)
 
-  outputTable <- outputTableTemp / countTable
-  returnData <- list(
-    outputTable = outputTable,
-    blockNamesONE = blockNamesONE,
-    blockNamesTWO = blockNamesTWO,
+#   DI <- DD <- II <- ID <- 0    #D stands for "Default Label" and I stands for "Inverse Label"
+#   for(i in seq(length(par.pred))){
+#     if(par.pred[i] == testBayesianDataTemp$Label[i]){
+#       if(par.pred[i] %in% inverseLabel){  # If the prediction is correct and the prediction and the label are not default label (or let's say are not positive). This can be considered as TN
+#         II <- II + 1
+# #        block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,2] <- block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,2] +1
+#       } else{
+#         DD <- DD + 1
+# #        block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,3] <- block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,3] +1
+#       }
+#     } else{
+#       if(par.pred[i] == defaultLabel){
+#         DI <- DI + 1
+# #        block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,4] <- block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,4] +1
+#       } else{
+#         if(testBayesianDataTemp$Label[i] == defaultLabel){
+#           ID <- ID + 1
+# #          block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,5] <- block_based_res[(which(block_based_res$block_name==testBayesianData$blockTemp[i])) ,5] +1
+#         }
+#       }
+#     }
+#   }
+#   performance_temp <- as.numeric((DD + II) / length(par.pred), 4)
+#   recall_temp <- as.numeric(DD / length(which(testBayesianDataTemp$Label == defaultLabel)), 4)
+#   precision_temp <- as.numeric(DD / (DD + DI), 4)
+#  for(ind_bbr in 1:nrow(block_based_res)){
+#    block_based_res[ind_bbr,6] <- as.numeric((block_based_res[ind_bbr, 3] + block_based_res[ind_bbr,2]) / (block_based_res[ind_bbr,3] +block_based_res[ind_bbr,2] +block_based_res[ind_bbr,4]+block_based_res[ind_bbr,5]), 4)
+#    block_based_res[ind_bbr,7] <- as.numeric(block_based_res[ind_bbr,3] / (block_based_res[ind_bbr,3] + block_based_res[ind_bbr,4]), 4)
+#    block_based_res[ind_bbr,8] <- as.numeric(block_based_res[ind_bbr,3] / length(which(testBayesianData$Label == defaultLabel & testBayesianData$blockTemp==block_based_res[ind_bbr,1])), 4)
+#  }
+  block_based_res <- replace(block_based_res, is.na(block_based_res), 0)
+   returnData <- list(
+    performance_test=performance_t,
+    precision_test=precision_t,
+    recall_test=recall_t,
+    blockNamesONE = block_orig[1],
+    blockNamesTWO = block_orig[2],
+    block_based_res=block_based_res,
+    used_blocks = blockUniqueNames,
     topFeatureNames = topFeatureNames
   )
   attr(returnData,'class') <- "cvPheno"
@@ -1234,6 +1196,49 @@ test.pheno<-function(WorkingData=NULL, block=NULL, label=NULL, orderby=NULL, ste
 
 }
 
+train.test.generation <- function(data=NULL, x=NULL, y=NULL,label=NULL, defaultLabel=NULL, block=NULL, orderby=NULL,testBlockProp=0.2){
+  valueTransferData_sds <-PhenoPro7::TransferData(data = data, x = x, y = y, label=label, block=block, orderby = orderby)
+  WorkingData_sds<- valueTransferData_sds$data
+  block_sds <- valueTransferData_sds$block
+  orderby_sds = valueTransferData_sds$orderby
+
+  blockUniqueNames <- unique(WorkingData_sds[[block_sds]])
+  blockOrderedNames <- mixedsort(blockUniqueNames)
+  labelUniqueNames <- unique(WorkingData_sds[[label]])
+  defaultLabelUniqueNames <- defaultLabel
+  inverseLabel <- labelUniqueNames[- which(labelUniqueNames == defaultLabel)]
+
+  splitDatabyBlock <- split(WorkingData_sds, as.vector(WorkingData_sds[[block_sds]]))
+  FUNALLEQU <- function(x, label){
+    return(!any(x[[label]] != x[[label]][1]))
+  }
+  FUNLABEL <- function(x, label){
+    return(x[[label]][1])
+  }
+  if(!all(sapply(splitDatabyBlock, FUNALLEQU, label = label, simplify = TRUE)))
+    stop("data in some 'block' have multiple 'label'")
+  blockOrderedLabels <- as.vector(sapply(splitDatabyBlock, FUNLABEL,
+                                         label = label, simplify = TRUE))
+
+  WorkingDataSub_sds <- subset(WorkingData_sds,
+                               select = c(x, y, label, block, block_sds, orderby_sds))
+  features <- c(x, y)
+
+  valueSplitData_sds <-PhenoPro7::SplitData(WorkingDataSub_sds, block_sds, orderby_sds,
+                                            testBlockProp, blockOrderedLabels, blockOrderedNames)  # Here the data is divided to train and test data
+  dataSplitData_sds <- valueSplitData_sds$data
+  trainData_sds <- dataSplitData_sds$train
+  testData_sds <- dataSplitData_sds$test
+  testName_sds <- dataSplitData_sds$testName
+
+  returnData <- list(
+    train.set=trainData_sds,
+    test.set=testData_sds,
+    testName=testName_sds
+  )
+  attr(returnData,'class') <- "train.test.generation"
+  return(returnData)
+}
 require(ggplot2)
 require(MASS)
 require(e1071)
