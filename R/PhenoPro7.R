@@ -337,6 +337,10 @@ BayesianNIGProcess <- function(object){
     for(i in seq(length(x))){         # For every environmental feature in x
       for(j in seq(length(y))){       # For every phynotype variable in y
         featuresTEMP <- c(x[i], y[j]) # x[i] and y[j] construct a pair of environmental-phynotype features
+        featuresTEMP_history<-
+        if((featuresTEMP[1]==featuresTEMP[2]) || (paste(x[i],y[j],"I",sep = "_") %in% colnames(Beta)) || (paste(y[j],x[i],"I",sep = "_") %in% colnames(Beta))){
+          next
+        }
         splitDatabyLabels <- split(WorkingData,  # Splits the data based on the label
                                    as.vector(WorkingData[[label]]))
         splitDataLabelNames <- names(splitDatabyLabels)
@@ -384,6 +388,9 @@ BayesianNIGProcess <- function(object){
     for(i in seq(length(x))){
       for(j in seq(length(y))){
         featuresTEMP <- c(x[i], y[j])
+        if((featuresTEMP[1]==featuresTEMP[2]) || (paste(x[i],y[j],"I",sep = "_") %in% colnames(Beta)) || (paste(y[j],x[i],"I",sep = "_") %in% colnames(Beta))){
+          next
+        }
         DataTemp <- WorkingData
         xTemp <- DataTemp[[featuresTEMP[1]]]
         yTemp <- DataTemp[[featuresTEMP[2]]]
@@ -465,51 +472,85 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     EstParametersList <- WorkingDataTemp$EstParametersList
     BayesianData <- WorkingDataTemp$Beta
     WorkingDataTemp <- BayesianData
-    if(feature_selection=="PCA"){
-      resPCA <- prcomp(subset(WorkingDataTemp, select = - Label),
-                       center = TRUE, scale. = TRUE)
+    lda_data_transformed<- NULL
+    lda_index<-0
+    lda_res<- NULL
+    scales_matrix <- as.data.frame(matrix(0,nrow = (dim(WorkingDataTemp)[2]-1)/2,ncol = 3))
+    colnames(scales_matrix) <- c("Intercept coefficient", "slope coefficient")
+    if(feature_selection=="LDA"){
+      for(i in seq(length(x))){
+        for(j in seq(length(y))){
+          xName <- paste(x[i], y[j], "I", sep = "_")
+          yName <- paste(x[i], y[j], "S", sep = "_")
+          if((x[i]==y[j]) || !(xName %in% colnames(WorkingDataTemp)) || !(yName %in% colnames(WorkingDataTemp))){
+            next
+          }
+          lda_data_temp <- subset(WorkingDataTemp, select = c(xName, yName, "Label"))
+          lda_index<-lda_index+1
+          lda_res <- lda(Label ~ .,
+                     lda_data_temp)
+          #plda <- predict(object = lda_res,
+          #                newdata = lda_data_temp)
+          #colnames(plda$x) <-paste(x[i],y[j],sep="_")
+          #lda_data_transformed <- cbind(lda_data_transformed, plda$x)
+          #lda_data_transformed <- cbind(lda_data_transformed, plda$x)
+          scales_matrix[lda_index,1:2] <-lda_res$scaling
+          scales_matrix[lda_index,3] <- paste(x[i],y[j],sep="_")
+          transformed_vector <- (lda_data_temp[,1] * scales_matrix[1,1])+(lda_data_temp[,2]*scales_matrix[1,2])
+          transformed_vector <- as.matrix(transformed_vector)
+          colnames(transformed_vector) <-paste(x[i],y[j],sep="_")
+          lda_data_transformed <- cbind(lda_data_transformed, transformed_vector)
 
-      propvar <- as.vector(summary(resPCA)$importance[2, ])
-      cumuvar <- as.vector(summary(resPCA)$importance[3, ])
-      numberPCA <- max(2, which(cumuvar > 0.7)[1])
-      resRotation <- resPCA$rotation[ , (1 : (numberPCA))]
-      nameTemp <- rownames(resRotation)
-      scaleRotation <- t(t(abs(resRotation)) * propvar)
+          #=================plot
+          plot1 <- ggplot() + geom_point(data = lda_data_temp,
+                                      mapping = aes(lda_data_temp[[1]], lda_data_temp[[2]],
+                                                    colour = factor(lda_data_temp[[3]]))) + xlab(xName) + ylab(yName) + theme(legend.position = "none")
+          ggsave(paste("PhenoPro_",xName,".png",sep = ""))
+          plot_temp1<-as.data.frame(transformed_vector)
+          plot_temp1<-cbind(plot_temp1, lda_data_temp$Label)
+          colnames(plot_temp1)<-c(paste(x[i],y[j],sep="_"),"Labels")
+          plot2 <- ggplot() + geom_point(data = plot_temp1,
+                                         mapping = aes(plot_temp1[[1]], Labels,
+                                                       colour = factor(plot_temp1$Labels))) + xlab(paste(x[i],y[j],sep="_")) + ylab("Labels") + theme(legend.position = "none")
 
-      # searching top feature names combining (I, S)
-      #		nameSplit <- strsplit(nameTemp, "_")
-      #		rowSumsTemp <- as.vector(rowSums(scaleRotation))
-      #		feaSums <- rep(0, length(rowSumsTemp) / 2)
-      #		feaNams <- rep(0, length(rowSumsTemp) / 2)
-      #		for(i in seq(length(rowSumsTemp) / 2)){
-      #			feaSums[i] <- rowSumsTemp[2 * i - 1] + rowSumsTemp[2 * i]
-      #			feaNams[i] <- paste(nameSplit[[2 * i]][1], nameSplit[[2 * i]][2],
-      #				sep = "_")
-      #		}
-      #		featureTemp <- data.frame(feaNams, feaSums)
-      #		featureTemp <- featureTemp[order(featureTemp$feaSums, decreasing = TRUE), ]
-      #		topFeatureNames <- as.vector(featureTemp$feaNams[1 : min(nrow(featureTemp), 3)])
+          ggsave(paste("LDA_",paste(x[i],y[j],sep="_"),".png",sep = ""))
 
-      # searching top feature names not combining (I, S)
+          #=================plot
 
-      rowSumsTemp <- as.vector(rowSums(scaleRotation))
-      feaSums <- rowSumsTemp
-      feaNams <- as.vector(nameTemp)
-      featureTemp <- data.frame(feaNams, feaSums)
-      featureTemp <- featureTemp[order(featureTemp$feaSums, decreasing = TRUE), ]
-      if(is.null(nfeatures)){
-        topFeatureNames <- as.vector(featureTemp$feaNams)
-      } else{
-        if(nfeatures < nrow(featureTemp)){
-          topFeatureNames <- as.vector(featureTemp$feaNams[1 : min(nrow(featureTemp), nfeatures)])
-        } else{
-          stop("please select a smaller 'nfeatures'")
+          #assign(paste("lda_res",paste(x[i],y[j],sep="_"),sep="_"), lda_res, envir = .GlobalEnv)
+          #plot1 <- ggplot() + geom_point(data = lda_data_temp,
+          #                            mapping = aes(lda_data_temp[[1]], lda_data_temp[[2]],
+          #                                          colour = factor(lda_data_temp[[3]]))) + xlab(xName) + ylab(yName) + theme(legend.position = "none")
+          #ggsave(paste("PhenoPro_",xName,".png",sep = ""))
+          #plot_temp1<-as.data.frame(plda$x)
+          #plot_temp1<-cbind(plot_temp1, lda_data_temp$Label)
+          #colnames(plot_temp1)<-c(paste(x[i],y[j],sep="_"),"Labels")
+          #plot2 <- ggplot() + geom_point(data = plot_temp1,
+          #                               mapping = aes(plot_temp1[[1]], Labels,
+          #                                             colour = factor(plot_temp1$Labels))) + xlab(paste(x[i],y[j],sep="_")) + ylab("Labels") + theme(legend.position = "none")
+
+          #ggsave(paste("LDA_",paste(x[i],y[j],sep="_"),".png",sep = ""))
+          #plot3 <- grid.arrange(plot1, plot2, ncol = 2)
+          #plot3
+
         }
       }
 
+      topFeatureNames <- colnames(lda_data_transformed)
+      lda_data_transformed<-as.data.frame(lda_data_transformed)
+      lda_data_transformed <- cbind(lda_data_transformed, Label=WorkingDataTemp$Label)
 
-      fullFeatureNames <- as.vector(featureTemp$feaNams)
+      weights <- information.gain(Label~., lda_data_transformed)
+      weights[,2]<- row.names(weights)
+      weights_sorted <-sort(weights[,1], decreasing = TRUE, index.return=TRUE)
+      topFeatureNames_indexes<- weights_sorted$ix[1:nfeatures]
+      topFeatureNames<- weights[topFeatureNames_indexes,2]
 
+
+      WorkingDataTempPCA<-subset(lda_data_transformed, select = c(topFeatureNames, "Label"))
+
+      fullFeatureNames <- as.vector(colnames(BayesianData))
+      fullFeatureNames <- fullFeatureNames[1:length(fullFeatureNames)-1]
       topNameSplit <- strsplit(topFeatureNames, "_")
       topFeatureFullNames <- c()
       for(i in seq(length(topFeatureNames))){
@@ -526,8 +567,85 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
       }
       fullFeatureFullNames <- unique(as.vector(fullFeatureFullNames))
 
-      WorkingDataTempPCA <- subset(BayesianData, select = c(topFeatureNames,
-                                                            "Label"))
+    }else if(feature_selection=="PCA"){
+      resPCA <- prcomp(subset(WorkingDataTemp, select = - Label),
+                       center = TRUE, scale. = TRUE)
+      #===================new (april 22, 2018) implementation of PCA
+      WorkingDataTempPCA <- resPCA$x[,1:nfeatures]
+      topFeatureNames<-NULL
+      selected_features<-NULL
+      numberPCA <- nfeatures
+      fea <- NULL
+      topFeatureFullNames <- NULL
+      fullFeatureNames <- NULL
+      fullFeatureFullNames <- NULL
+      WorkingDataTempPCA <- as.data.frame(WorkingDataTempPCA)
+      WorkingDataTempPCA[["Label"]]<- WorkingDataTemp$Label
+      #WorkingDataTempPCA<-as.data.frame(cbind(WorkingDataTempPCA, Label=WorkingDataTemp$Label))
+      #===================
+
+      #==================Following lines are highlighted because I wanted to try the above code for PCA
+
+      # propvar <- as.vector(summary(resPCA)$importance[2, ])
+      # cumuvar <- as.vector(summary(resPCA)$importance[3, ])
+      # numberPCA <- max(2, which(cumuvar > 0.7)[1])
+      # resRotation <- resPCA$rotation[ , (1 : (numberPCA))]
+      # nameTemp <- rownames(resRotation)
+      # scaleRotation <- t(t(abs(resRotation)) * propvar)
+#
+#       # searching top feature names combining (I, S)
+#       #		nameSplit <- strsplit(nameTemp, "_")
+#       #		rowSumsTemp <- as.vector(rowSums(scaleRotation))
+#       #		feaSums <- rep(0, length(rowSumsTemp) / 2)
+#       #		feaNams <- rep(0, length(rowSumsTemp) / 2)
+#       #		for(i in seq(length(rowSumsTemp) / 2)){
+#       #			feaSums[i] <- rowSumsTemp[2 * i - 1] + rowSumsTemp[2 * i]
+#       #			feaNams[i] <- paste(nameSplit[[2 * i]][1], nameSplit[[2 * i]][2],
+#       #				sep = "_")
+#       #		}
+#       #		featureTemp <- data.frame(feaNams, feaSums)
+#       #		featureTemp <- featureTemp[order(featureTemp$feaSums, decreasing = TRUE), ]
+#       #		topFeatureNames <- as.vector(featureTemp$feaNams[1 : min(nrow(featureTemp), 3)])
+#
+#       # searching top feature names not combining (I, S)
+#
+#       rowSumsTemp <- as.vector(rowSums(scaleRotation))
+#       feaSums <- rowSumsTemp
+#       feaNams <- as.vector(nameTemp)
+#       featureTemp <- data.frame(feaNams, feaSums)
+#       featureTemp <- featureTemp[order(featureTemp$feaSums, decreasing = TRUE), ]
+#       if(is.null(nfeatures)){
+#         topFeatureNames <- as.vector(featureTemp$feaNams)
+#       } else{
+#         if(nfeatures < nrow(featureTemp)){
+#           topFeatureNames <- as.vector(featureTemp$feaNams[1 : min(nrow(featureTemp), nfeatures)])
+#         } else{
+#           stop("please select a smaller 'nfeatures'")
+#         }
+#       }
+#
+#
+#       fullFeatureNames <- as.vector(featureTemp$feaNams)
+#
+#       topNameSplit <- strsplit(topFeatureNames, "_")
+#       topFeatureFullNames <- c()
+#       for(i in seq(length(topFeatureNames))){
+#         topFeatureFullNames <- c(topNameSplit[[i]][1], topNameSplit[[i]][2],
+#                                  topFeatureFullNames)
+#       }
+#       topFeatureFullNames <- unique(as.vector(topFeatureFullNames))
+#
+#       fullNameSplit <- strsplit(fullFeatureNames, "_")
+#       fullFeatureFullNames <- c()
+#       for(i in seq(length(fullFeatureNames))){
+#         fullFeatureFullNames <- c(fullNameSplit[[i]][1], fullNameSplit[[i]][2],
+#                                   fullFeatureFullNames)
+#       }
+#       fullFeatureFullNames <- unique(as.vector(fullFeatureFullNames))
+#
+#       WorkingDataTempPCA <- subset(BayesianData, select = c(topFeatureNames,
+#                                                             "Label"))
+
     }else if(feature_selection =="NA")
     {
 
@@ -623,6 +741,12 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
       weights_sorted <-sort(weights[,1], decreasing = TRUE, index.return=TRUE)
       topFeatureNames_indexes<- weights_sorted$ix[1:nfeatures]
       topFeatureNames<- weights[topFeatureNames_indexes,2]
+      #========================================================
+      #topFeatureNames<- c("LIGHT_PhiNPQ_I", "LIGHT_PhiNPQ_S")# For R1
+      #topFeatureNames<- c("LIGHT_PhiNO_I", "LIGHT_PhiNO_S") # For V3; this one is good when PhenoPro8 is used in which during the training phase we transform block by block. However, in PhenoPro7 we first divide the training to H and D and then transform them seperately.
+      #topFeatureNames<- c("LIGHT_PhiNO_I", "LIGHT_PhiNO_S","LIGHT_PhiNPQ_I", "LIGHT_PhiNPQ_S") # For the whole data including both R1 and V3
+      topFeatureNames<- c("Lef_SPAD_I","Lef_SPAD_S") # For V3; April 16, 2018==== I can also use RH-Phi2 and LIGHT-SPAD and LIGHT-Fs
+      #========================================================
       WorkingDataTempPCA<-subset(BayesianData, select = c(topFeatureNames,
                                                           "Label"))
 
@@ -655,6 +779,32 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
   } else{
     stop("invalid 'label' which is NULL")
   }
+  # if(feature_selection=="LDA"){
+  #   lda_res_list_index <- 0
+  #   lda_res_list <- vector("list", lda_index)
+  #   for(i in seq(length(x))){
+  #     for(j in seq(length(y))){
+  #       if(x[i]==y[j]){
+  #         next
+  #       }
+  #       xName <- paste(x[i], y[j], "I", sep = "_")
+  #       yName <- paste(x[i], y[j], "S", sep = "_")
+  #       lda_res_list_index<-lda_res_list_index+1
+  #       lda_res_list[lda_res_list_index] <- eval(parse(text = paste("lda_res",paste(x[i],y[j],sep="_"),sep="_")))
+  #       #assign(paste("lda_res",paste(x[i],y[j],sep="_"),sep="_"), lda_res_list[[lda_res_list_index]])
+  #       }
+  #     }
+  #   }
+  if(feature_selection=="LDA"){
+    lda_model <- lda_res
+    resPCA <- NULL
+    numComp = NULL
+    fea <- topFeatureNames
+    selected_features <- topFeatureNames
+  }else{
+    lda_model <- NULL
+    scales_matrix <- NULL
+  }
   if(feature_selection=="PCA"){
     resPCA <- resPCA
     numComp <- numberPCA
@@ -667,7 +817,7 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     fea <- topFeatureNames
     selected_features <- topFeatureNames
     weights<-weights
-  }	else{
+  }	else if(feature_selection=="lmFuncs" || feature_selection=="nbFuncs" || feature_selection=="rfFuncs" || feature_selection=="treebagFuncs"){
     resPCA <- NULL
     numComp = NULL
     fea <- lmProfile$optVariables
@@ -678,9 +828,12 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
   returnData <- list(
     Raw = RawData,
     Org = OriginalData,
+    nfeatures=nfeatures,
+    transformed_data=WorkingDataTempPCA,
     Bay = BayesianData, # add topFeatureNames as their column names
     pre = predictData,
     EST = EstParametersList,
+    feature_selection  = feature_selection,
     used_blocks = used_blocks,
     #		clu = clusterData,
     #		cv = crossvadalitionData,
@@ -690,6 +843,8 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
                blockNamesTWO = blockNamesTWO),
     #		pca = WorkingDataTempPCA, # matrix after rotation
     resPCA = resPCA,
+    lda_model=lda_model,
+    scales_matrix=scales_matrix,
     weights_features=weights,
     numComp = numComp,
     #fea = topFeatureNames,
@@ -741,6 +896,9 @@ plot.Pheno <- function(object){
 
   for(i in seq(length(x))){
     for(j in seq(length(y))){
+      if(!(paste(x[i],y[j],"I",sep = "_") %in% colnames(BayesianData))){
+        next
+      }
       OriginalDataPlot <- subset(OriginalData, select = c(x[i], y[j], label))
       xName <- paste(x[i], y[j], "I", sep = "_")
       yName <- paste(x[i], y[j], "S", sep = "_")
@@ -1049,7 +1207,7 @@ plot.cvPheno <- function(object){
   gg
 }
 
-BlockSplit <- function(x, blockName, label, discard = FALSE){
+BlockSplit <- function(x, blockName, label, discard = FALSE){ # This function seperate blocks which include more than one lable; for example, if a blocm contains both healthy and diseased plants this function break the block into two smaller blocks
   Name1 <- blockName[1]
   Name2 <- blockName[2]
   LabelLevel <- as.vector(unique(x[[label]]))
@@ -1061,8 +1219,8 @@ BlockSplit <- function(x, blockName, label, discard = FALSE){
   blockVector <- as.vector(unique(x$blockNameMerge))
   index <- 1
   for(i in seq(length(blockVector))){
-    xTemp <- subset(x, blockNameMerge == blockVector[i])
-    if(length(as.vector(unique(xTemp[[label]]))) != 1){
+    xTemp <- subset(x, blockNameMerge == blockVector[i])  # Select one block of data
+    if(length(as.vector(unique(xTemp[[label]]))) != 1){   # If the block contains samples from more than one class
       number1 <- length(which(xTemp[[label]] == LabelLevel[1]))
       number2 <- length(which(xTemp[[label]] == LabelLevel[2]))
       if(number1 >= number2){
@@ -1138,7 +1296,7 @@ train.test.generation <- function(data=NULL, x=NULL, y=NULL,label=NULL,defaultLa
 # This function test an unseen data. The labels of the test set are not passed to this function.
 # In fact, this function just gets some test blocks, add a key index to the samples, transforms test blocks one by one, and then concatenates
 # concatenates all transformed blocks, predicts the lables using the model trained in the Pheno function and return the predictions and the key indexes.
-test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, block=NULL, block_orig= NULL, orderby=NULL, step=1, width=6, method="SVM",defaultLabel=NULL, topFeatureFullNames=NULL, topFeatureNames=NULL, x=NULL, y=NULL, prior=TRUE){
+test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model = NULL, scales_matrix=NULL, nfeatures=NULL,feature_selection  = NULL, block=NULL, block_orig= NULL, orderby=NULL, step=1, width=6, method="SVM",defaultLabel=NULL, topFeatureFullNames=NULL, topFeatureNames=NULL, x=NULL, y=NULL, prior=TRUE){
   keys<-seq(1:nrow(WorkingData))
   label<-NULL
   # This key is added to the data because the function in next line
@@ -1149,8 +1307,9 @@ test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, block=NULL,
 
   x_temp<- x
   y_temp <- y
+  if(feature_selection != "PCA"){
   x <- intersect(x_temp, topFeatureFullNames)
-  y <- intersect(y_temp, topFeatureFullNames)
+  y <- intersect(y_temp, topFeatureFullNames)}
   blockUniqueNames <- unique(WorkingData[[block]])
   #blockOrderedNames <- mixedsort(blockUniqueNames)
   #labelUniqueNames <- unique(WorkingData[[label]])
@@ -1168,8 +1327,39 @@ test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, block=NULL,
                        labelUniqueNames = NULL)
     # The selected testing block is transformed
     testBayesianData <- BayesianNIGProcess(objectlist)$Beta
-    testBayesianDataTemp <- subset(testBayesianData,
-                                   select = c(topFeatureNames))
+    if(feature_selection=="LDA"){
+      lda_test_transformed<- NULL
+      for(i in 1:length(topFeatureNames)){
+        #lda_model_temp <- eval(parse(text = paste("lda_res",topFeatureNames[i],sep = "_")))
+        feature_I <- paste(topFeatureNames[i], "I",sep = "_")
+        feature_S <- paste(topFeatureNames[i], "S", sep = "_")
+        lda_data_temp <- subset(testBayesianData, select = c(feature_I, feature_S))
+        scales_matrix_temp <- as.matrix(scales_matrix[which(scales_matrix[,3]==topFeatureNames[i]),1:2])
+        transformed_vector <- as.data.frame((lda_data_temp[,1] * scales_matrix_temp[1])+(lda_data_temp[,2]*scales_matrix_temp[2]))
+        colnames(transformed_vector) <-topFeatureNames[i]
+        transformed_vector <- as.matrix(transformed_vector)
+        lda_test_transformed <- cbind(lda_test_transformed, transformed_vector)
+
+        #plda <- predict(object = lda_model_temp,
+        #                 newdata = lda_data_temp)
+        #colnames(plda$x) <-paste(topFeatureNames[i])
+        #lda_test_transformed <- cbind(lda_test_transformed, plda$x)
+        #lda_test_transformed <- scales_matrix
+
+
+
+        #plot1 <- ggplot() + geom_point(data = lda_data_temp,
+        #                               mapping = aes(lda_data_temp[[1]], lda_data_temp[[2]],colour = factor(1))) + xlab(colnames(lda_data_temp)[1]) + ylab(colnames(lda_data_temp)[2]) + theme(legend.position = "none")
+      }
+      testBayesianDataTemp <- as.data.frame(lda_test_transformed)
+    }else if(feature_selection=="PCA"){
+        test_pca_data<-predict(pca_model, newdata = testBayesianData)
+        testBayesianDataTemp <- as.data.frame(test_pca_data[,1:nfeatures])
+
+    }else{
+      testBayesianDataTemp <- subset(testBayesianData,
+                                     select = c(topFeatureNames))
+    }
     testBayesianDataTemp[["keys"]]<-block_temp$keys
     testBayesianDataTemp[["block"]]<-block_temp$blockTemp
     # The transformed test block will be appended to the test set
@@ -1296,6 +1486,7 @@ require(gridExtra)
 require(gtools)
 require(viridis)
 require(ggthemes)
+require(FSelector)
 
 
 
