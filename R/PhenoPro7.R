@@ -29,7 +29,11 @@ CheckArguments.Pheno <- function(object){
 
   # check names, replicated names are allowed by using [[]]
   varNames <- colnames(data)
-  inputNames <- c(x, y, label, block, orderby)
+  if(length(setdiff(x,y))==0){
+    inputNames <- c(x,label, block, orderby)
+  }else{
+    inputNames <- c(x, label, block, orderby)
+  }
   if(all(inputNames %in% varNames) != TRUE)
     stop("invalid argument names")
 
@@ -70,7 +74,7 @@ CheckArguments.Pheno <- function(object){
   # check method argument
   if(is.null(method) | length(method) != 1)
     stop("invalid 'method', at most 1 dimension")
-  if(!(method %in% c("SVM", "RF", "KMEANS")))
+  if(!(method %in% c("SVM", "RF", "KMEANS","Ensemble")))
     stop("invalid 'method', only 'SVM', 'RF', 'KMEANS' are available")
   if(!is.null(label) & (method %in% c("KMEANS")))
     stop("invalid 'method', must be 'SVM' or 'RF' due to existing 'label'")
@@ -178,7 +182,7 @@ SplitData <- function(data, block, orderby,
 }
 
 #This function concatenate block[0] (for example Row) and block[1] (for example Run) and add this as a new column named "blockTemp".
-#Finally it returns a subset of data only including columns such as : x, y, label, blockTemp, orderby
+#Finally it sorts the data by "orderby" and returns a subset of data only including columns such as : x, y, label, blockTemp, orderby
 TransferData <- function(data, x, y, label, block, orderby){
 
   # to data frame
@@ -206,13 +210,23 @@ TransferData <- function(data, x, y, label, block, orderby){
 
   # select subset data
   if(!is.null(label)){
+    if(length(setdiff(x,y))==0){
+      WorkingDataSub <- subset(WorkingData, select = c(
+        x, label,block_temp, block, orderby))
+    }else{
     WorkingDataSub <- subset(WorkingData, select = c(
       x, y, label,block_temp, block, orderby))
+    }
     WorkingDataSub <- WorkingDataSub[order(WorkingDataSub[[orderby]],
                                            decreasing = FALSE), ]
   } else{
+    if(length(setdiff(x,y))==0){
+      WorkingDataSub <- subset(WorkingData, select = c(
+        x, block_temp,block, orderby, "keys"))
+    }else{
     WorkingDataSub <- subset(WorkingData, select = c(
       x, y, block_temp,block, orderby, "keys"))            #KEYS IS ADDED, JAN 31
+    }
     WorkingDataSub <- WorkingDataSub[order(WorkingDataSub[[orderby]],
                                            decreasing = FALSE), ]
   }
@@ -332,12 +346,14 @@ BayesianNIGProcess <- function(object){
   labelUniqueNames <- object$labelUniqueNames
   Beta <- NULL
   EstParametersList <- list()
-
+  all_pairs <- as.data.frame(matrix(0,nrow =1,ncol = 2 ))
+  all_pairs_index<-1
+  colnames(all_pairs) <- c("Intercept", "Slope")
   if(!(is.null(label))){
     for(i in seq(length(x))){         # For every environmental feature in x
       for(j in seq(length(y))){       # For every phynotype variable in y
         featuresTEMP <- c(x[i], y[j]) # x[i] and y[j] construct a pair of environmental-phynotype features
-        featuresTEMP_history<-
+       # featuresTEMP_history<-
         if((featuresTEMP[1]==featuresTEMP[2]) || (paste(x[i],y[j],"I",sep = "_") %in% colnames(Beta)) || (paste(y[j],x[i],"I",sep = "_") %in% colnames(Beta))){
           next
         }
@@ -376,6 +392,8 @@ BayesianNIGProcess <- function(object){
         BetaTemp <- cbind(interceptSplitData, slopeSplitData)
         colnames(BetaTemp) <- c(paste(x[i], y[j], "I", sep = "_"),
                                 paste(x[i], y[j], "S", sep = "_"))
+        all_pairs[all_pairs_index,] <- c(paste(x[i], y[j], "I", sep = "_"), paste(x[i], y[j], "S", sep = "_"))
+        all_pairs_index <- all_pairs_index+1
         Beta <- cbind(Beta, BetaTemp)
       }
     }
@@ -416,7 +434,7 @@ BayesianNIGProcess <- function(object){
     }
     Beta <- as.data.frame(Beta)
   }
-  return(list(Beta = Beta, EstParametersList = EstParametersList))
+  return(list(Beta = Beta, EstParametersList = EstParametersList, all_pairs=all_pairs))
 }
 
 # This function is the training function. It gets the input training data, transform the data and
@@ -459,7 +477,8 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
   if(!is.null(label)){
     labelUniqueNames <- unique(WorkingData[[label]]) # LabelUniqueNames includes label values like M, N and S
 
-    features <- c(x, y) # features includes both x and y (i.e. all  environmental and phenotype features
+    #features <- c(x, y) # features includes both x and y (i.e. all  environmental and phenotype features
+    features <- union(x,y)
     WorkingDataTemp <- subset(WorkingData, select = c(features,label)) #WorkingDataTemp includes only environmental and phenotype features and the label
     OriginalData <- WorkingDataTemp
     #		crossvadalitionData <- WorkingData
@@ -469,6 +488,7 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
                        labelUniqueNames = labelUniqueNames)
     #		attr(objectlist, 'class') <- fn
     WorkingDataTemp <- BayesianNIGProcess(objectlist)
+    all_pairs <- WorkingDataTemp$all_pairs
     EstParametersList <- WorkingDataTemp$EstParametersList
     BayesianData <- WorkingDataTemp$Beta
     WorkingDataTemp <- BayesianData
@@ -502,18 +522,18 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
           lda_data_transformed <- cbind(lda_data_transformed, transformed_vector)
 
           #=================plot
-          plot1 <- ggplot() + geom_point(data = lda_data_temp,
-                                      mapping = aes(lda_data_temp[[1]], lda_data_temp[[2]],
-                                                    colour = factor(lda_data_temp[[3]]))) + xlab(xName) + ylab(yName) + theme(legend.position = "none")
-          ggsave(paste("PhenoPro_",xName,".png",sep = ""))
-          plot_temp1<-as.data.frame(transformed_vector)
-          plot_temp1<-cbind(plot_temp1, lda_data_temp$Label)
-          colnames(plot_temp1)<-c(paste(x[i],y[j],sep="_"),"Labels")
-          plot2 <- ggplot() + geom_point(data = plot_temp1,
-                                         mapping = aes(plot_temp1[[1]], Labels,
-                                                       colour = factor(plot_temp1$Labels))) + xlab(paste(x[i],y[j],sep="_")) + ylab("Labels") + theme(legend.position = "none")
+          #plot1 <- ggplot() + geom_point(data = lda_data_temp,
+          #                            mapping = aes(lda_data_temp[[1]], lda_data_temp[[2]],
+          #                                          colour = factor(lda_data_temp[[3]]))) + xlab(xName) + ylab(yName) + theme(legend.position = "none")
+          #ggsave(paste("PhenoPro_",xName,".png",sep = ""))
+          #plot_temp1<-as.data.frame(transformed_vector)
+          #plot_temp1<-cbind(plot_temp1, lda_data_temp$Label)
+          #colnames(plot_temp1)<-c(paste(x[i],y[j],sep="_"),"Labels")
+          #plot2 <- ggplot() + geom_point(data = plot_temp1,
+          #                               mapping = aes(plot_temp1[[1]], Labels,
+          #                                             colour = factor(plot_temp1$Labels))) + xlab(paste(x[i],y[j],sep="_")) + ylab("Labels") + theme(legend.position = "none")
 
-          ggsave(paste("LDA_",paste(x[i],y[j],sep="_"),".png",sep = ""))
+          #ggsave(paste("LDA_",paste(x[i],y[j],sep="_"),".png",sep = ""))
 
           #=================plot
 
@@ -566,6 +586,163 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
                                   fullFeatureFullNames)
       }
       fullFeatureFullNames <- unique(as.vector(fullFeatureFullNames))
+
+    }else if(feature_selection=="Ensemble"){
+      weak_classifiers <- as.data.frame(matrix(0,nrow = nrow(all_pairs),ncol = 5))
+      colnames(weak_classifiers) <- c("pair_name","intercept","I_coefficient","S_coefficient","weigth")
+      #label_temp_numerical <- as.data.frame(WorkingDataTemp$Label, stringsAsFactors=FALSE)
+      #label_temp_numerical[which(label_temp_numerical== as.character(labelUniqueNames[1])),] <-1
+      #label_temp_numerical[which(label_temp_numerical== as.character(labelUniqueNames[2])),] <-2
+
+      labels_temp <-as.character(WorkingDataTemp$Label) # 1 means H and 2 means D
+      labels_temp[which(labels_temp==as.character(labelUniqueNames[1]))]<- 1
+      labels_temp[which(labels_temp==as.character(labelUniqueNames[2]))]<- 2
+      labels_temp <- as.numeric(labels_temp)
+      for(painrs_ind in 1:nrow(all_pairs)){
+        pairs_temp <- subset(WorkingDataTemp, select = c(all_pairs[painrs_ind,1],all_pairs[painrs_ind,2]))
+        pairs_temp[["Labels"]] <- labels_temp
+        #labels_temp[which(labels_temp=="D")] <- 1
+        #pairs_temp[["Labels"]] <- WorkingDataTemp$Label
+        linear_model <- lm(formula= Labels ~ pairs_temp[[1]] + pairs_temp[[2]], data=pairs_temp)
+        labels_unique <- unique(as.numeric(WorkingDataTemp$Label))
+        predicted_labels_train <- linear_model$coefficients[1] + linear_model$coefficients[2] * pairs_temp[[1]] + linear_model$coefficients[3] * pairs_temp[[2]]
+        predicted_labels_train_temp <- predicted_labels_train
+        true_weights <-0
+        false_weights <-0
+        for(label_ind in 1:length(predicted_labels_train)){
+          if(abs(labels_unique[1]-predicted_labels_train[label_ind]) <= abs(labels_unique[2]-predicted_labels_train[label_ind])){
+            predicted_labels_train[label_ind] <-labels_unique[1]
+            if(labels_unique[1]==labels_temp[label_ind]){
+              true_weights <- true_weights + 1
+            }else{
+              false_weights <- false_weights +1
+            }
+          }else{
+            predicted_labels_train[label_ind] <-labels_unique[2]
+            if(labels_unique[2]==labels_temp[label_ind]){
+              true_weights <- true_weights + 1
+            }else{
+              false_weights <- false_weights +1
+            }
+              }
+        }
+        accuracy_wight <- true_weights /(true_weights+false_weights)
+        if(accuracy_wight>0.8){
+          print(colnames(pairs_temp))
+        }
+        weak_classifiers[painrs_ind, 1] <- paste(all_pairs[painrs_ind,1],all_pairs[painrs_ind,2],sep = "*")
+        weak_classifiers[painrs_ind, 2] <- linear_model$coefficients[1]
+        weak_classifiers[painrs_ind, 3] <- linear_model$coefficients[2]
+        weak_classifiers[painrs_ind, 4] <- linear_model$coefficients[3]
+        weak_classifiers[painrs_ind, 5] <- accuracy_wight
+      }
+      label_mapping <- as.data.frame(matrix(0, nrow = length(labelUniqueNames), ncol = 2))
+      colnames(label_mapping)<- c("Label_name", "Label_code")
+      label_mapping[1,1]<- as.character(labelUniqueNames[1])
+      label_mapping[1,2]<- 1
+      label_mapping[2,1]<- as.character(labelUniqueNames[2])
+      label_mapping[2,2]<- 2
+
+    }else if(feature_selection=="Ensemble of SVMs"){
+    #==========================================================================
+      cv_folds_num <-20
+      label_mapping<- NULL
+      #weak_classifiers <- as.data.frame(matrix(0,nrow = nrow(all_pairs),ncol = 5))
+      #colnames(weak_classifiers) <- c("pair_name","intercept","I_coefficient","S_coefficient","weigth")
+      weak_classifiers<-matrix(list(), nrow=nrow(all_pairs), ncol=4)
+      colnames(weak_classifiers) <- c("pair_name", "model", "Accuracy", "index")
+      #label_temp_numerical <- as.data.frame(WorkingDataTemp$Label, stringsAsFactors=FALSE)
+      #label_temp_numerical[which(label_temp_numerical== as.character(labelUniqueNames[1])),] <-1
+      #label_temp_numerical[which(label_temp_numerical== as.character(labelUniqueNames[2])),] <-2
+
+      labels_temp <-WorkingDataTemp$Label
+      #labels_temp[which(labels_temp==as.character(labelUniqueNames[1]))]<- 1
+      #labels_temp[which(labels_temp==as.character(labelUniqueNames[2]))]<- 2
+      #labels_temp <- as.numeric(labels_temp)
+      for(painrs_ind in 1:nrow(all_pairs)){
+        pairs_temp <- subset(WorkingDataTemp, select = c(all_pairs[painrs_ind,1],all_pairs[painrs_ind,2]))
+        pairs_temp[["Labels"]] <- labels_temp
+
+        #train_validation <- PhenoPro7::train.test.generation(data=sds,x=c("LIGHT", "RH", "TEMP"), y=c("Phi2", "NPQT","PhiNPQ", "PhiNO", "qL", "Lef", "Phi1", "FoPrime", "Fs", "FmPrime", "SPAD"),label="R4DX2", defaultLabel = "D",block= c("RowC","RunC"),orderby ="Time.n", testBlockProp =0.1 )
+
+        #labels_temp[which(labels_temp=="D")] <- 1
+        #pairs_temp[["Labels"]] <- WorkingDataTemp$Label
+        accuracy_wight <- 0
+
+        for(pair_validation_ind in 1:cv_folds_num){
+          #print("Cross validation index; inside the pair-wise training")
+          #print(pair_validation_ind)
+          t <- as.numeric(Sys.time())
+          seed <- 1e8 * (t - floor(t))
+          set.seed(seed)
+          #============================BLOCK BASED VALIDATION
+          #valid_all_sep<- PhenoPro7::train.test.generation(data=pairs_temp,x=c("LIGHT", "RH", "TEMP"), y=c("Phi2", "NPQT","PhiNPQ", "PhiNO", "qL", "Lef", "Phi1", "FoPrime", "Fs", "FmPrime", "SPAD"),label="R4DX2", defaultLabel = "D",block= c("RowC","RunC"),orderby ="Time.n", testBlockProp =0.1 )
+
+          #============================END OF BLOCK BASED VALIDATION
+          smp_size <- floor(0.75 * nrow(pairs_temp))
+          train_ind <- sample(seq_len(nrow(pairs_temp)), size = smp_size)
+          train_pairs <- pairs_temp[train_ind, ]
+          validation_pairs <- pairs_temp[-train_ind, ]
+          trained_model <- svm(Labels ~ ., data = train_pairs)
+          labels_unique <- unique(as.numeric(WorkingDataTemp$Label))
+          validation <- validation_pairs[, -which(names(validation_pairs) %in% c("Labels"))]
+          validation_labels <- validation_pairs$Labels
+          predicted_labels_train <- predict(trained_model, validation)
+          #predicted_labels_train <- linear_model$coefficients[1] + linear_model$coefficients[2] * pairs_temp[[1]] + linear_model$coefficients[3] * pairs_temp[[2]]
+          #predicted_labels_train_temp <- predicted_labels_train
+          true_weights <-0
+          false_weights <-0
+          for(label_ind in 1:length(predicted_labels_train)){
+            if(predicted_labels_train[label_ind]== validation_labels[label_ind]){
+              #predicted_labels_train[label_ind] <-labels_unique[1]
+              #if(labels_unique[1]==labels_temp[label_ind]){
+              true_weights <- true_weights + 1
+              #}else{
+              #  false_weights <- false_weights +1
+              #}
+            }else{
+              #predicted_labels_train[label_ind] <-labels_unique[2]
+              #if(labels_unique[2]==labels_temp[label_ind]){
+              #  true_weights <- true_weights + 1
+              #}else{
+              false_weights <- false_weights +1
+              #}
+            }
+          }
+          accuracy_wight <- accuracy_wight + (true_weights /(true_weights+false_weights))
+          #if(accuracy_wight>0.8){
+          #  print(pairs_temp)
+          #}
+          }
+        trained_model <- svm(Labels ~ ., data = pairs_temp)
+        weak_classifiers[[painrs_ind, 1]] <- paste(all_pairs[painrs_ind,1],all_pairs[painrs_ind,2],sep = "*")
+        weak_classifiers[[painrs_ind, 2]] <- trained_model
+        weak_classifiers[[painrs_ind, 3]] <- accuracy_wight/cv_folds_num
+        weak_classifiers[[painrs_ind, 4]] <- painrs_ind
+        #weak_classifiers[painrs_ind, 1] <- paste(all_pairs[painrs_ind,1],all_pairs[painrs_ind,2],sep = "*")
+        #weak_classifiers[painrs_ind, 2] <- linear_model$coefficients[1]
+        #weak_classifiers[painrs_ind, 3] <- linear_model$coefficients[2]
+        #weak_classifiers[painrs_ind, 4] <- linear_model$coefficients[3]
+        #weak_classifiers[painrs_ind, 5] <- accuracy_wight
+      }
+      #label_mapping <- as.data.frame(matrix(0, nrow = length(labelUniqueNames), ncol = 2))
+      #colnames(label_mapping)<- c("Label_name", "Label_code")
+      #label_mapping[1,1]<- as.character(labelUniqueNames[1])
+      #label_mapping[1,2]<- 1
+      #label_mapping[2,1]<- as.character(labelUniqueNames[2])
+      #label_mapping[2,2]<- 2
+
+
+    #==========================================================================
+    }else if(feature_selection=="Gradient Boosting"){
+      train_set<- as.matrix(WorkingDataTemp[, !names(WorkingDataTemp) %in% c("Label")])
+      train_label <-  as.character(WorkingDataTemp$Label)
+      train_label[which(train_label=="D")]<- as.character(0)
+      train_label[which(train_label=="H")]<- as.character(1)
+      train_label <- as.matrix(as.numeric(train_label))
+      dtrain <- xgb.DMatrix(data = train_set, label=train_label)
+      bst <- xgb.train(data=dtrain, max.depth=5, eta=1, nthread = 2, nround=5, objective = "binary:logistic")
+      #print("something")
 
     }else if(feature_selection=="PCA"){
       resPCA <- prcomp(subset(WorkingDataTemp, select = - Label),
@@ -649,8 +826,7 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     }else if(feature_selection =="NA")
     {
 
-      WorkingDataTempPCA<-BayesianData #subset(BayesianData, select = c(lmProfile$optVariables,
-      #                   "Label"))
+      WorkingDataTempPCA<-BayesianData
       topFeatureNames<-as.vector(colnames(BayesianData))#lmProfile$optVariables
       topFeatureNames<-topFeatureNames[1:length(topFeatureNames)-1]
       #fullFeatureNames <- as.vector(featureTemp$feaNams)
@@ -745,7 +921,7 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
       #topFeatureNames<- c("LIGHT_PhiNPQ_I", "LIGHT_PhiNPQ_S")# For R1
       #topFeatureNames<- c("LIGHT_PhiNO_I", "LIGHT_PhiNO_S") # For V3; this one is good when PhenoPro8 is used in which during the training phase we transform block by block. However, in PhenoPro7 we first divide the training to H and D and then transform them seperately.
       #topFeatureNames<- c("LIGHT_PhiNO_I", "LIGHT_PhiNO_S","LIGHT_PhiNPQ_I", "LIGHT_PhiNPQ_S") # For the whole data including both R1 and V3
-      topFeatureNames<- c("Lef_SPAD_I","Lef_SPAD_S") # For V3; April 16, 2018==== I can also use RH-Phi2 and LIGHT-SPAD and LIGHT-Fs
+      #topFeatureNames<- c("NPQT_Lef_I","NPQT_Lef_S")#  c("NPQt_RelativeChlorophyll_I","NPQt_RelativeChlorophyll_S")#c("NPQt_Phi2_I", "NPQt_Phi2_S")#c("Lef_SPAD_I","Lef_SPAD_S")#,"LIGHT_Fs_I","LIGHT_Fs_S")#"RH_SPAD_I","RH_SPAD_S")#,"LIGHT_Fs_I","LIGHT_Fs_S") # For V3; April 16, 2018==== I can also use RH-Phi2 and LIGHT-SPAD and LIGHT-Fs
       #========================================================
       WorkingDataTempPCA<-subset(BayesianData, select = c(topFeatureNames,
                                                           "Label"))
@@ -772,8 +948,45 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     if(method == "RF"){
       predictData <- randomForest(Label ~ ., data = WorkingDataTempPCA,
                                   importance = TRUE, proximity = TRUE)
-    } else{
+    } else if(method=="SVM"){
       predictData <- svm(Label ~ ., data = WorkingDataTempPCA)
+    }else if(method=="Ensemble"){
+      WorkingDataTempPCA<-BayesianData
+      topFeatureNames<-as.vector(colnames(BayesianData))#lmProfile$optVariables
+      topFeatureNames<-topFeatureNames[1:length(topFeatureNames)-1]
+      #fullFeatureNames <- as.vector(featureTemp$feaNams)
+      fullFeatureNames <- as.vector(colnames(BayesianData))
+      fullFeatureNames <- fullFeatureNames[1:length(fullFeatureNames)-1]
+      topNameSplit <- strsplit(topFeatureNames, "_")
+      topFeatureFullNames <- c()
+      for(i in seq(length(topFeatureNames))){
+        topFeatureFullNames <- c(topNameSplit[[i]][1], topNameSplit[[i]][2],
+                                 topFeatureFullNames)
+      }
+      topFeatureFullNames <- unique(as.vector(topFeatureFullNames))
+
+      fullNameSplit <- strsplit(fullFeatureNames, "_")
+      fullFeatureFullNames <- c()
+      for(i in seq(length(fullFeatureNames))){
+        fullFeatureFullNames <- c(fullNameSplit[[i]][1], fullNameSplit[[i]][2],
+                                  fullFeatureFullNames)
+      }
+      fullFeatureFullNames <- unique(as.vector(fullFeatureFullNames))
+      predictData=NULL
+      arg = list(label = label, x = x, y = y, method = method,
+                   block = block, defaultLabel = defaultLabel, orderby = orderby,
+                   step = step, width = width, blockNamesONE = blockNamesONE,
+                   blockNamesTWO = blockNamesTWO)
+        #		pca = WorkingDataTempPCA, # matrix after rotation
+      resPCA = NULL
+      lda_model=NULL
+      scales_matrix=NULL
+      weight=NULL
+      numComp = NULL
+      fea=topFeatureNames
+      selected_features=NULL
+    }else{
+      stop("method should be 'RF', 'SVM' or 'Ensemble'")
     }
     clusterData <- NULL
   } else{
@@ -805,6 +1018,11 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     lda_model <- NULL
     scales_matrix <- NULL
   }
+  if(feature_selection != "Gradient Boosting"){
+    bst <-NULL
+  }else{
+    bst <- bst
+  }
   if(feature_selection=="PCA"){
     resPCA <- resPCA
     numComp <- numberPCA
@@ -824,6 +1042,10 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     selected_features=lmProfile$optVariables
     weights <- NULL
   }
+  if(feature_selection != "Ensemble" && feature_selection != "Ensemble of SVMs"){
+    weak_classifiers <- NULL
+    label_mapping <- NULL
+  }
   used_blocks <- unique(WorkingData$blockTemp)
   returnData <- list(
     Raw = RawData,
@@ -834,6 +1056,9 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     pre = predictData,
     EST = EstParametersList,
     feature_selection  = feature_selection,
+    weak_classifiers = weak_classifiers,
+    bst=bst,
+    label_mapping=label_mapping,
     used_blocks = used_blocks,
     #		clu = clusterData,
     #		cv = crossvadalitionData,
@@ -908,14 +1133,146 @@ plot.Pheno <- function(object){
                                   mapping = aes(OriginalDataPlot[[x[i]]], OriginalDataPlot[[y[j]]],
                                                 colour = factor(OriginalDataPlot[[label]]))) +
         xlab(x[i]) +
-        ylab(y[j]) + theme(legend.position = "none")
+        ylab(y[j]) + theme(axis.text = element_text(colour = "black", size=10), axis.title =  element_text(colour = "black", size=10),legend.position = "none")  #theme()
+
       p2 <- ggplot() + geom_point(data = BayesianDataPlot,
                                   mapping = aes(BayesianDataPlot[[xName]], BayesianDataPlot[[yName]],
                                                 colour = Label)) +
         xlab("intercept") +
-        ylab("Slope")
+        ylab("Slope") + theme(axis.text = element_text(colour = "black", size=10), axis.title =  element_text(colour = "black", size=10))
       p12 <- grid.arrange(p1, p2, ncol = 2)
       p12
+      ggsave(paste("PhenoPro_",paste(x[i],y[j],sep="_"),".png",sep = ""), plot = p12, width=8, height = 3, dpi=600)
+    }
+  }
+}
+
+plot.Pheno.version2 <- function(object){
+  scaleFUN <- function(x) sprintf("%+12.5f", x)
+  arg <- object$arg
+  x <- arg$x
+  y <- arg$y
+  label <- arg$label
+  OriginalData <- object$Org
+  BayesianData <- object$Bay
+
+  for(i in seq(length(x))){
+    for(j in seq(length(y))){
+      if(!(paste(x[i],y[j],"I",sep = "_") %in% colnames(BayesianData))){
+        next
+      }
+      OriginalDataPlot <- subset(OriginalData, select = c(x[i], y[j], label))
+      xName <- paste(x[i], y[j], "I", sep = "_")
+      yName <- paste(x[i], y[j], "S", sep = "_")
+      BayesianDataPlot <- subset(BayesianData, select = c(xName, yName, "Label"))
+      x_label_temp <- x[i]
+      if(x[i]=="LIGHT"){
+        x_label_temp <- "Light Intensity"
+      }else if(x[i]=="RH"){
+        x_label_temp <- "Relative Humidity"
+      }else if(x[i]=="TEMP"){
+        x_label_temp <- "Temperature"
+      }else if(x[i]=="Phi2"){
+        x_label_temp <- expression(phi1[II])
+      }else if(x[i]=="NPQT"){
+        x_label_temp <- expression(NPQ[T])
+      }else if(x[i]=="PhiNPQ"){
+        x_label_temp <- expression(phi1[NPQ])
+      }else if(x[i]=="PhiNO"){
+        x_label_temp <- expression(phi1[NO])
+      }else if(x[i]=="qL"){
+        x_label_temp <- "qL"
+      }else if(x[i]=="Lef"){
+        x_label_temp <- "LEF"
+      }else if(x[i]=="Phi1"){
+        x_label_temp <- expression(phi1[I])
+      }else if(x[i]=="FoPrime"){
+        x_label_temp <- "F0'"
+      }else if(x[i]=="Fs"){
+        x_label_temp <- "Fs"
+      }else if(x[i]=="FmPrime"){
+        x_label_temp <- "Fm"
+      }else if(x[i]=="SPAD"){
+        x_label_temp <- "SPAD"
+      }else if(x[i]=="AmbientHumidity"){
+        x_label_temp <- "Relative Humidity"
+      }else if(x[i]=="LeafTemp"){
+        x_label_temp <- "Leaf Temperature"
+      }else if(x[i]=="LeafAngle"){
+        x_label_temp <- "Leaf Angle"
+      }else if(x[i]=="LEF"){
+        x_label_temp <- "LEF"
+      }else if(x[i]=="LightIntensityPAR"){
+        x_label_temp <- "Light Intensity"
+      }else if(x[i]=="NPQt"){
+        x_label_temp <- expression(NPQ[T])
+      }else if(x[i]=="RelativeChlorophyll"){
+        x_label_temp <- "SPAD"
+      }
+
+      y_label_temp <- y[j]
+      if(y[j]=="LIGHT"){
+        y_label_temp <- "Light Intensity"
+      }else if(y[j]=="RH"){
+        y_label_temp <- "Relative Humidity"
+      }else if(y[j]=="TEMP"){
+        y_label_temp <- "Temperature"
+      }else if(y[j]=="Phi2"){
+        y_label_temp <- expression(phi1[II])
+      }else if(y[j]=="NPQT"){
+        y_label_temp <- expression(NPQ[T])
+      }else if(y[j]=="PhiNPQ"){
+        y_label_temp <- expression(phi1[NPQ])
+      }else if(y[j]=="PhiNO"){
+        y_label_temp <- expression(phi1[NO])
+      }else if(y[j]=="qL"){
+        y_label_temp <- "qL"
+      }else if(y[j]=="Lef"){
+        y_label_temp <- "LEF"
+      }else if(y[j]=="Phi1"){
+        y_label_temp <- expression(phi1[I])
+      }else if(y[j]=="FoPrime"){
+        y_label_temp <- "F0'"
+      }else if(y[j]=="Fs"){
+        y_label_temp <- "Fs"
+      }else if(y[j]=="FmPrime"){
+        y_label_temp <- "Fm"
+      }else if(y[j]=="SPAD"){
+        y_label_temp <- "SPAD"
+      }else if(y[j]=="AmbientHumidity"){
+        y_label_temp <- "Relative Humidity"
+      }else if(y[j]=="LeafTemp"){
+        y_label_temp <- "Leaf Temperature"
+      }else if(y[j]=="LeafAngle"){
+        y_label_temp <- "Leaf Angle"
+      }else if(y[j]=="LEF"){
+        y_label_temp <- "LEF"
+      }else if(y[j]=="LightIntensityPAR"){
+        y_label_temp <- "Light Intensity"
+      }else if(y[j]=="NPQt"){
+        y_label_temp <- expression(NPQ[T])
+      }else if(y[j]=="RelativeChlorophyll"){
+        y_label_temp <- "SPAD"
+      }
+
+      p1 <- ggplot() + geom_point(data = OriginalDataPlot,
+                                  mapping = aes(OriginalDataPlot[[x[i]]], OriginalDataPlot[[y[j]]],
+                                                colour = factor(OriginalDataPlot[[label]])), show.legend = FALSE) +
+        xlab(x_label_temp) +
+        ylab(y_label_temp) + theme(axis.text = element_text(colour = "black"), axis.title =  element_text(colour = "black"), legend.position = "none")#, plot.margin =  ggplot2::margin(1, 1, 1,1,"cm"))  #theme(legend.position = "none")
+
+      #p1 <- p1 + facet_grid(. ~ cyl)
+      p1 <-p1 + scale_y_continuous(labels=scaleFUN)
+
+      p2 <- ggplot() + geom_point(data = BayesianDataPlot,
+                                  mapping = aes(BayesianDataPlot[[xName]], BayesianDataPlot[[yName]],
+                                                colour = Label), show.legend = FALSE) +
+        xlab("intercept") +
+        ylab("Slope") + theme(axis.text = element_text(colour = "black"), axis.title =  element_text(colour = "black"))#, plot.margin = ggplot2::margin(1, 1,1,1,"cm"))
+      p2 <-p2 + scale_y_continuous(labels=scaleFUN)
+      p12 <- grid.arrange(p1, p2, ncol = 2)
+      p12
+      ggsave(paste("PhenoPro_",paste(x[i],y[j],sep="_"),".png",sep = ""), plot = p12, width=8, height = 3, dpi=600)
     }
   }
 }
@@ -1296,7 +1653,7 @@ train.test.generation <- function(data=NULL, x=NULL, y=NULL,label=NULL,defaultLa
 # This function test an unseen data. The labels of the test set are not passed to this function.
 # In fact, this function just gets some test blocks, add a key index to the samples, transforms test blocks one by one, and then concatenates
 # concatenates all transformed blocks, predicts the lables using the model trained in the Pheno function and return the predictions and the key indexes.
-test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model = NULL, scales_matrix=NULL, nfeatures=NULL,feature_selection  = NULL, block=NULL, block_orig= NULL, orderby=NULL, step=1, width=6, method="SVM",defaultLabel=NULL, topFeatureFullNames=NULL, topFeatureNames=NULL, x=NULL, y=NULL, prior=TRUE){
+test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model = NULL, scales_matrix=NULL, weak_classifiers=NULL, bst=NULL,label_mapping=NULL , nfeatures=NULL,feature_selection  = NULL, block=NULL, block_orig= NULL, orderby=NULL, step=1, width=6, method="SVM",defaultLabel=NULL, topFeatureFullNames=NULL, topFeatureNames=NULL, x=NULL, y=NULL, prior=TRUE){
   keys<-seq(1:nrow(WorkingData))
   label<-NULL
   # This key is added to the data because the function in next line
@@ -1316,7 +1673,8 @@ test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model =
   defaultLabelUniqueNames <- defaultLabel
 
   inputData_temp<-NULL
-  features <- c(x, y)
+  #features <- c(x, y)
+  features <- union(x, y)
   for(i in 1:length(blockUniqueNames)){
     # One testing block is selected
     block_temp<- WorkingData[which(WorkingData$blockTemp==blockUniqueNames[i]),]
@@ -1370,7 +1728,135 @@ test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model =
   # Just keep the features
   inputData<-inputData_temp[, !names(inputData_temp) %in% c("keys","block")]
   # Predict the samples using the test samples and the already trained model
-  par.pred <- predict(predictive_model, inputData)
+  if(feature_selection=="Ensemble"){
+    predicted_labels_test <- matrix(0,nrow = nrow(inputData), 1)
+    weak_classifiers <- weak_classifiers[order(weak_classifiers$weigth, decreasing = TRUE),]
+    sum_weights<-0
+    for(ensemble_ind in 1:nfeatures){
+      pair_temp <- unlist(strsplit(weak_classifiers[ensemble_ind,1], split='*', fixed=TRUE))
+      #pair_temp <- c("Lef_SPAD_I", "Lef_SPAD_S")
+      #if(pair_temp==c("Lef_SPAD_I", "Lef_SPAD_S")){
+      #  print("something")
+      #}
+
+      pair_data_temp <- subset(inputData, select = c(pair_temp[1], pair_temp[2]))
+      #print("Selected pair is: ")
+      #print(pair_temp)
+      #print(dim(pair_temp))
+      predicted_labels_test <- predicted_labels_test + ( weak_classifiers[ensemble_ind,2] + weak_classifiers[ensemble_ind,3] * pair_data_temp[[1]] + weak_classifiers[ensemble_ind,4] * pair_data_temp[[2]]) #* weak_classifiers[ensemble_ind,5]
+      sum_weights <- sum_weights + weak_classifiers[ensemble_ind,5]
+    }
+    predicted_labels_test <- predicted_labels_test /nfeatures #sum_weights
+    par.pred <- as.data.frame(matrix(0,nrow = length(predicted_labels_test),ncol = 1))
+    for(ensemble_ind in 1: length(predicted_labels_test)){
+      if(abs(predicted_labels_test[ensemble_ind]-1) <= abs(predicted_labels_test[ensemble_ind]-2)){
+        predicted_labels_test[ensemble_ind]<- 1
+        par.pred[ensemble_ind,1] <- label_mapping[1,1]
+      }else{
+        predicted_labels_test[ensemble_ind]<- 2
+        par.pred[ensemble_ind,1] <- label_mapping[2,1]
+      }
+
+    }
+
+  }else if(feature_selection=="Ensemble of SVMs"){
+  #===========================================================
+    #predicted_labels_test <- as.data.frame(matrix(0,nrow = dim(inputData)[1], ncol = 1))
+    # weak_classifiers <- weak_classifiers[order(weak_classifiers$weigth, decreasing = TRUE),]
+    sum_weights<-0
+    #num_above_thresh<- 0
+    #threshold_ensemble <- 0.80
+    #for(ensemble_ind in 1:nrow(weak_classifiers)){
+    #  if(weak_classifiers[ensemble_ind,3] >= threshold_ensemble){
+    #    num_above_thresh<-num_above_thresh+1
+    #  }
+    #}
+    acc_ind_mat <- as.data.frame(matrix(0,nrow = nrow(weak_classifiers), ncol = 2))
+    colnames(acc_ind_mat) <- c("accuracy","index" )
+    for(ensemble_ind in 1:nrow(weak_classifiers)){
+      acc_ind_mat[ensemble_ind,1] <- weak_classifiers[ensemble_ind,3]
+      acc_ind_mat[ensemble_ind,2] <- weak_classifiers[ensemble_ind,4]
+    }
+    acc_ind_mat_sorted <- acc_ind_mat[order(acc_ind_mat$accuracy,decreasing = TRUE),]
+    predicted_labels_test <- matrix(0,nrow = dim(inputData)[1], ncol = nfeatures)
+    predicted_labels_index <-1
+    for(ensemble_ind in 1:nfeatures){
+      pair_temp <- unlist(strsplit(unlist(weak_classifiers[acc_ind_mat_sorted[ensemble_ind,2],1]), split='*', fixed=TRUE))
+      #pair_temp <- c("Lef_SPAD_I", "Lef_SPAD_S")
+      pair_data_temp <- subset(inputData, select = c(pair_temp[1], pair_temp[2]))
+      #predicted_labels_test[,ensemble_ind] <- as.character(predict(weak_classifiers[[81,2]],pair_data_temp))
+      predicted_labels_test[,ensemble_ind] <- as.character(predict(weak_classifiers[[acc_ind_mat_sorted[ensemble_ind,2],2]],pair_data_temp))
+      #predicted_labels_index <- predicted_labels_index + 1
+    }
+
+    #num_above_thresh<- nfeatures
+    #predicted_labels_test <- matrix(0,nrow = dim(inputData)[1], ncol = num_above_thresh)
+    #predicted_labels_index <-1
+    #for(ensemble_ind in 1:nrow(weak_classifiers)){
+    #  if(weak_classifiers[ensemble_ind,3] < threshold_ensemble){
+    #    next
+    #  }
+      #pair_temp <- unlist(strsplit(weak_classifiers[ensemble_ind,1], split='*', fixed=TRUE))
+    #  pair_temp <- unlist(strsplit(unlist(weak_classifiers[ensemble_ind,1]), split='*', fixed=TRUE))
+      #pair_temp <- c("Lef_SPAD_I", "Lef_SPAD_S")
+      #if(pair_temp==c("Lef_SPAD_I", "Lef_SPAD_S")){
+      #  print("something")
+      #}
+
+     # pair_data_temp <- subset(inputData, select = c(pair_temp[1], pair_temp[2]))
+      #print("Selected pair is: ")
+      #print(pair_temp)
+      #print(dim(pair_temp))
+      #predicted_labels_test[,predicted_labels_index] <- as.character(predict(weak_classifiers[[ensemble_ind,2]],pair_data_temp))
+      #predicted_labels_index <- predicted_labels_index + 1
+      #predicted_labels_test + ( weak_classifiers[ensemble_ind,2] + weak_classifiers[ensemble_ind,3] * pair_data_temp[[1]] + weak_classifiers[ensemble_ind,4] * pair_data_temp[[2]]) #* weak_classifiers[ensemble_ind,5]
+      #sum_weights <- sum_weights + weak_classifiers[ensemble_ind,5]
+    #}
+    #predicted_labels_test <- predicted_labels_test /nfeatures #sum_weights
+    #==================A QUICK TEST===========================
+    #predicted_labels_test <- matrix(0,nrow = dim(inputData)[1], ncol = 1)
+    #pair_temp <- c("Lef_SPAD_I", "Lef_SPAD_S")
+    #pair_data_temp <- subset(inputData, select = c(pair_temp[1], pair_temp[2]))
+    #predicted_labels_index<- 1
+    #ensemble_ind<- 81
+    #print(weak_classifiers[[ensemble_ind,1]])
+    #predicted_labels_test[,predicted_labels_index] <- as.character(predict(weak_classifiers[[ensemble_ind,2]],pair_data_temp))
+    #======================================================================
+
+    par.pred <- as.data.frame(matrix(0,nrow = nrow(predicted_labels_test),ncol = 1))
+    #names(which.max(table(predicted_labels_test[1,])))
+    for(ensemble_ind in 1: dim(predicted_labels_test)[1]){
+      label_predicet_temp <- names(which.max(table(predicted_labels_test[ensemble_ind,])))
+      par.pred[ensemble_ind,1] <-  label_predicet_temp
+      #if( label_predicet_temp ==  ){
+      #  predicted_labels_test[ensemble_ind]<- 1
+      #  par.pred[ensemble_ind,1] <- label_mapping[1,1]
+      #}else{
+      #  predicted_labels_test[ensemble_ind]<- 2
+      #  par.pred[ensemble_ind,1] <- label_mapping[2,1]
+      #}
+
+    }
+
+  #===========================================================
+  }else if(feature_selection=="Gradient Boosting"){
+    threshold_reg <- 0.5
+    inputData <- as.matrix(inputData)
+    dtest <- xgb.DMatrix(data = inputData)
+    pred <- predict(bst, inputData)
+    #par.pred <- as.factor(matrix(0,nrow = length(pred), ncol = 1))
+    par.pred <- as.character(pred)
+    for(i in 1:length(par.pred)){
+      if(pred[i]>= threshold_reg){
+        par.pred[i] <- "H"
+      }else{
+        par.pred[i] <- "D"
+      }
+    }
+
+  }else{
+    par.pred <- predict(predictive_model, inputData)
+    }
   # Concatenate block name, index keys and predictions and return that.
   blocks_labels_preds <-  cbind.data.frame(inputData_temp$block, inputData_temp$keys,par.pred)
   colnames(blocks_labels_preds) <- c("blockTemp", "keys", "par.pred")
@@ -1406,6 +1892,39 @@ calc.performance<-function(blocks_labels_preds=NULL, labels=NULL, pos_label="D")
   for(i in 1:length(labels)){
     blocks_labels_preds$keys[i]<-as.character(labels[as.integer(blocks_labels_preds$keys[i])])
   }
+  #Calculating smaple based performance
+  true_positive<-0
+  true_negative<-0
+  false_positive<-0
+  false_negative<-0
+  accuracy<-0
+  sensitivity <-0
+  false_p_rate<-0
+  for(j in 1:nrow(blocks_labels_preds)){
+    if(blocks_labels_preds$par.pred[j] == blocks_labels_preds$keys[j]){
+      if(blocks_labels_preds$par.pred[j] != pos_label){
+        true_negative <- true_negative + 1
+      }else{
+        true_positive <- true_positive + 1
+      }
+    }else{
+      if(blocks_labels_preds$par.pred[j]==pos_label){
+        false_positive <- false_positive + 1
+      }else{
+        false_negative <- false_negative + 1
+      }
+    }
+  }
+  accuracy_samples <- (true_negative+true_positive)/(true_negative+true_positive+false_negative+false_positive)
+  precision_samples <-  (true_positive)/(true_positive+false_positive)
+  recall_samples <- (true_positive)/(true_positive+false_negative)
+  sample_base_res <- as.data.frame(matrix(0,nrow = 1,ncol = 4))
+  colnames(sample_base_res) <- c("Accuracy", "Precision", "Recall", "Size")
+  sample_base_res[1,1] <- accuracy_samples
+  sample_base_res[1,2] <- precision_samples
+  sample_base_res[1,3] <- recall_samples
+  sample_base_res[1,4] <- nrow(blocks_labels_preds)
+
   for(ind_per in 1:length(blockUniqueNames)){
     # One block is selected
     blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
@@ -1439,7 +1958,64 @@ calc.performance<-function(blocks_labels_preds=NULL, labels=NULL, pos_label="D")
   fp_t<-FP
   fn_t<-FN
   block_based_res <- replace(block_based_res, is.na(block_based_res), 0)
+
+
+  #==================================================Block based detailed results
+  block_based_res_detail <- data.frame(matrix(0, nrow = length(blockUniqueNames), ncol = 11))
+  block_based_res_detail[,1]<- blockUniqueNames
+  colnames(block_based_res_detail)<-c("block_name", "TN", "TP", "FN","FP","label","size","accracy", "precision", "recall", "F1-Score")
+  rownames(block_based_res_detail)<- blockUniqueNames
+
+  for(ind_per in 1:length(blockUniqueNames)){
+    # One block is selected
+    blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
+    block_actual_label <- names(which.max(table(blocks_labels_preds_temp$keys)))
+    true_positive_detailed<-0
+    true_negative_detailed<-0
+    false_positive_detailed<-0
+    false_negative_detailed<-0
+    accuracy_temp_detailed<-0
+    precision_temp_detailed <-0
+    recall_temp_detailed <-0
+    F1_temp_detailed <-0
+    for(j in 1:nrow(blocks_labels_preds_temp)){
+      if(blocks_labels_preds_temp$par.pred[j] == blocks_labels_preds_temp$keys[j]){
+        if(blocks_labels_preds_temp$par.pred[j] != pos_label){
+          true_negative_detailed <- true_negative_detailed + 1
+          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,2] <- 1
+        }else{
+          true_positive_detailed <- true_positive_detailed + 1
+          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,3] <- 1
+        }
+      }else{
+        if(blocks_labels_preds_temp$par.pred[j]==pos_label){
+          false_positive_detailed <- false_positive_detailed + 1
+          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,5] <- 1
+        }else{
+          false_negative_detailed <- false_negative_detailed + 1
+          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,4] <- 1
+        }
+      }
+    }
+    accuracy_temp_detailed <- (true_negative_detailed+true_positive_detailed)/(true_negative_detailed+true_positive_detailed+false_negative_detailed+false_positive_detailed)
+    precision_temp_detailed <- (true_positive_detailed)/(true_positive_detailed+false_positive_detailed)
+    recall_temp_detailed <- (true_positive_detailed)/(true_positive_detailed+false_negative_detailed)
+    F1_temp_detailed <- 2 * (precision_temp_detailed*recall_temp_detailed)/(precision_temp_detailed+recall_temp_detailed)
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,2] <- true_negative_detailed
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,3] <- true_positive_detailed
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,4] <- false_negative_detailed
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,5] <- false_positive_detailed
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,6]<- block_actual_label
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,7]<- nrow(blocks_labels_preds_temp)
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,8]<- accuracy_temp_detailed
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,9]<- precision_temp_detailed
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,10]<- recall_temp_detailed
+    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,11]<- F1_temp_detailed
+  }
+  block_based_res_detail <- replace(block_based_res_detail, is.na(block_based_res_detail), 0)
+  #================================================== End of block based detailed results
   returnData <- list(
+    sample_base_res=sample_base_res,
     performance_test=performance_t,
     precision_test=precision_t,
     recall_test=recall_t,
@@ -1448,6 +2024,7 @@ calc.performance<-function(blocks_labels_preds=NULL, labels=NULL, pos_label="D")
     fn_test= fn_t,
     fp_test = fp_t,
     block_based_res=block_based_res,
+    block_based_res_detail=block_based_res_detail,
     used_blocks = blockUniqueNames
   )
   attr(returnData,'class') <- "cvPheno"
@@ -1478,6 +2055,7 @@ plot.Bayes.Data <- function(BayesD=NULL, BasesDL=NULL){
   }
 
 }
+
 require(ggplot2)
 require(MASS)
 require(e1071)
