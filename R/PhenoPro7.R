@@ -174,7 +174,7 @@ SplitData <- function(data, block, orderby,
   trainData <- data[which(data[[block]] %in% trainNames), ]
   trainData <- trainData[order(trainData[[orderby]]), ]
   if(nrow(testData)==0){
-    print("hi")
+    print("The test set is empty! Change the parameters and try again please...")
   }
   returnData <- list(test = testData, train = trainData,
                      testName = testNames)
@@ -350,14 +350,14 @@ BayesianNIGProcess <- function(object){
   all_pairs_index<-1
   colnames(all_pairs) <- c("Intercept", "Slope")
   if(!(is.null(label))){
-    for(i in seq(length(x))){         # For every environmental feature in x
-      for(j in seq(length(y))){       # For every phynotype variable in y
-        featuresTEMP <- c(x[i], y[j]) # x[i] and y[j] construct a pair of environmental-phynotype features
-       # featuresTEMP_history<-
+    for(i in seq(length(x))){         # For every variable in x
+      for(j in seq(length(y))){       # For every variable in y
+        featuresTEMP <- c(x[i], y[j]) # x[i] and y[j] construct a pair of features (variables)
         if((featuresTEMP[1]==featuresTEMP[2]) || (paste(x[i],y[j],"I",sep = "_") %in% colnames(Beta)) || (paste(y[j],x[i],"I",sep = "_") %in% colnames(Beta))){
           next
         }
-        splitDatabyLabels <- split(WorkingData,  # Splits the data based on the label
+        # Splits the data based on the label
+        splitDatabyLabels <- split(WorkingData,
                                    as.vector(WorkingData[[label]]))
         splitDataLabelNames <- names(splitDatabyLabels)
         interceptSplitData <- c()
@@ -366,8 +366,8 @@ BayesianNIGProcess <- function(object){
         blockSplitData <- c()
         for(k in seq(length(labelUniqueNames))){ # For all possible lables (like for D and H)
           DataTemp <- splitDatabyLabels[[k]]      # Select all data from a current label; like all data with D as their labels
-          xTemp <- DataTemp[[featuresTEMP[1]]]   # xTemp is one environmental feature of the data like feature "LIGHT"
-          yTemp <- DataTemp[[featuresTEMP[2]]]   # yTemp is one phynotype feature of the data like feature "phi2"
+          xTemp <- DataTemp[[featuresTEMP[1]]]   # xTemp is one feature of the data like feature "LIGHT"
+          yTemp <- DataTemp[[featuresTEMP[2]]]   # yTemp is one feature of the data like feature "phi2"
           labelTemp <- unique(DataTemp[[label]])
           resultTemp <- BayesNIGEstimate(xTemp, yTemp, step, width)
           mu <- resultTemp$mu
@@ -389,6 +389,7 @@ BayesianNIGProcess <- function(object){
                                                   length(interceptTemp)))
           blockSplitData <-c(blockSplitData, splitDatabyLabels[[k]]$blockTemp)
         }
+        #Here, the recently calculated slopes and intercepts (using x[i] and y[j]) are cbind to the previouse ones.
         BetaTemp <- cbind(interceptSplitData, slopeSplitData)
         colnames(BetaTemp) <- c(paste(x[i], y[j], "I", sep = "_"),
                                 paste(x[i], y[j], "S", sep = "_"))
@@ -467,8 +468,8 @@ Pheno <- function(data = NULL, x = NULL, y = NULL, label = NULL,
     blockNamesONE <- NULL
     blockNamesTWO <- NULL
   }
-
-  valueTransferData <- TransferData(data, x, y, label, block, orderby) # TransferData is a function to remove irrelevant features and IT CHANGES THE ORDER OF THE INPUT DATA
+  # TransferData is a function to remove irrelevant features and IT CHANGES THE ORDER OF THE INPUT DATA
+  valueTransferData <- TransferData(data, x, y, label, block, orderby)
   WorkingData <- valueTransferData$data
   RawData <- WorkingData
   block <- valueTransferData$block
@@ -1165,95 +1166,96 @@ plot.Pheno.version2 <- function(object){
       xName <- paste(x[i], y[j], "I", sep = "_")
       yName <- paste(x[i], y[j], "S", sep = "_")
       BayesianDataPlot <- subset(BayesianData, select = c(xName, yName, "Label"))
+      #These lines are added to make the final images look nicer
       x_label_temp <- x[i]
-      if(x[i]=="LIGHT"){
-        x_label_temp <- "Light Intensity"
-      }else if(x[i]=="RH"){
-        x_label_temp <- "Relative Humidity"
-      }else if(x[i]=="TEMP"){
-        x_label_temp <- "Temperature"
-      }else if(x[i]=="Phi2"){
-        x_label_temp <- expression(phi1[II])
-      }else if(x[i]=="NPQT"){
-        x_label_temp <- expression(NPQ[T])
-      }else if(x[i]=="PhiNPQ"){
-        x_label_temp <- expression(phi1[NPQ])
-      }else if(x[i]=="PhiNO"){
-        x_label_temp <- expression(phi1[NO])
-      }else if(x[i]=="qL"){
-        x_label_temp <- "qL"
-      }else if(x[i]=="Lef"){
-        x_label_temp <- "LEF"
-      }else if(x[i]=="Phi1"){
-        x_label_temp <- expression(phi1[I])
-      }else if(x[i]=="FoPrime"){
-        x_label_temp <- "F0'"
-      }else if(x[i]=="Fs"){
-        x_label_temp <- "Fs"
-      }else if(x[i]=="FmPrime"){
-        x_label_temp <- "Fm"
-      }else if(x[i]=="SPAD"){
-        x_label_temp <- "SPAD"
-      }else if(x[i]=="AmbientHumidity"){
-        x_label_temp <- "Relative Humidity"
-      }else if(x[i]=="LeafTemp"){
-        x_label_temp <- "Leaf Temperature"
-      }else if(x[i]=="LeafAngle"){
-        x_label_temp <- "Leaf Angle"
-      }else if(x[i]=="LEF"){
-        x_label_temp <- "LEF"
-      }else if(x[i]=="LightIntensityPAR"){
-        x_label_temp <- "Light Intensity"
-      }else if(x[i]=="NPQt"){
-        x_label_temp <- expression(NPQ[T])
-      }else if(x[i]=="RelativeChlorophyll"){
-        x_label_temp <- "SPAD"
-      }
-
-      y_label_temp <- y[j]
-      if(y[j]=="LIGHT"){
-        y_label_temp <- "Light Intensity"
-      }else if(y[j]=="RH"){
-        y_label_temp <- "Relative Humidity"
-      }else if(y[j]=="TEMP"){
-        y_label_temp <- "Temperature"
-      }else if(y[j]=="Phi2"){
-        y_label_temp <- expression(phi1[II])
-      }else if(y[j]=="NPQT"){
-        y_label_temp <- expression(NPQ[T])
-      }else if(y[j]=="PhiNPQ"){
-        y_label_temp <- expression(phi1[NPQ])
-      }else if(y[j]=="PhiNO"){
-        y_label_temp <- expression(phi1[NO])
-      }else if(y[j]=="qL"){
-        y_label_temp <- "qL"
-      }else if(y[j]=="Lef"){
-        y_label_temp <- "LEF"
-      }else if(y[j]=="Phi1"){
-        y_label_temp <- expression(phi1[I])
-      }else if(y[j]=="FoPrime"){
-        y_label_temp <- "F0'"
-      }else if(y[j]=="Fs"){
-        y_label_temp <- "Fs"
-      }else if(y[j]=="FmPrime"){
-        y_label_temp <- "Fm"
-      }else if(y[j]=="SPAD"){
-        y_label_temp <- "SPAD"
-      }else if(y[j]=="AmbientHumidity"){
-        y_label_temp <- "Relative Humidity"
-      }else if(y[j]=="LeafTemp"){
-        y_label_temp <- "Leaf Temperature"
-      }else if(y[j]=="LeafAngle"){
-        y_label_temp <- "Leaf Angle"
-      }else if(y[j]=="LEF"){
-        y_label_temp <- "LEF"
-      }else if(y[j]=="LightIntensityPAR"){
-        y_label_temp <- "Light Intensity"
-      }else if(y[j]=="NPQt"){
-        y_label_temp <- expression(NPQ[T])
-      }else if(y[j]=="RelativeChlorophyll"){
-        y_label_temp <- "SPAD"
-      }
+      # if(x[i]=="LIGHT"){
+      #   x_label_temp <- "Light Intensity"
+      # }else if(x[i]=="RH"){
+      #   x_label_temp <- "Relative Humidity"
+      # }else if(x[i]=="TEMP"){
+      #   x_label_temp <- "Temperature"
+      # }else if(x[i]=="Phi2"){
+      #   x_label_temp <- expression(phi1[II])
+      # }else if(x[i]=="NPQT"){
+      #   x_label_temp <- expression(NPQ[T])
+      # }else if(x[i]=="PhiNPQ"){
+      #   x_label_temp <- expression(phi1[NPQ])
+      # }else if(x[i]=="PhiNO"){
+      #   x_label_temp <- expression(phi1[NO])
+      # }else if(x[i]=="qL"){
+      #   x_label_temp <- "qL"
+      # }else if(x[i]=="Lef"){
+      #   x_label_temp <- "LEF"
+      # }else if(x[i]=="Phi1"){
+      #   x_label_temp <- expression(phi1[I])
+      # }else if(x[i]=="FoPrime"){
+      #   x_label_temp <- "F0'"
+      # }else if(x[i]=="Fs"){
+      #   x_label_temp <- "Fs"
+      # }else if(x[i]=="FmPrime"){
+      #   x_label_temp <- "Fm"
+      # }else if(x[i]=="SPAD"){
+      #   x_label_temp <- "SPAD"
+      # }else if(x[i]=="AmbientHumidity"){
+      #   x_label_temp <- "Relative Humidity"
+      # }else if(x[i]=="LeafTemp"){
+      #   x_label_temp <- "Leaf Temperature"
+      # }else if(x[i]=="LeafAngle"){
+      #   x_label_temp <- "Leaf Angle"
+      # }else if(x[i]=="LEF"){
+      #   x_label_temp <- "LEF"
+      # }else if(x[i]=="LightIntensityPAR"){
+      #   x_label_temp <- "Light Intensity"
+      # }else if(x[i]=="NPQt"){
+      #   x_label_temp <- expression(NPQ[T])
+      # }else if(x[i]=="RelativeChlorophyll"){
+      #   x_label_temp <- "SPAD"
+      # }
+      #
+       y_label_temp <- y[j]
+      # if(y[j]=="LIGHT"){
+      #   y_label_temp <- "Light Intensity"
+      # }else if(y[j]=="RH"){
+      #   y_label_temp <- "Relative Humidity"
+      # }else if(y[j]=="TEMP"){
+      #   y_label_temp <- "Temperature"
+      # }else if(y[j]=="Phi2"){
+      #   y_label_temp <- expression(phi1[II])
+      # }else if(y[j]=="NPQT"){
+      #   y_label_temp <- expression(NPQ[T])
+      # }else if(y[j]=="PhiNPQ"){
+      #   y_label_temp <- expression(phi1[NPQ])
+      # }else if(y[j]=="PhiNO"){
+      #   y_label_temp <- expression(phi1[NO])
+      # }else if(y[j]=="qL"){
+      #   y_label_temp <- "qL"
+      # }else if(y[j]=="Lef"){
+      #   y_label_temp <- "LEF"
+      # }else if(y[j]=="Phi1"){
+      #   y_label_temp <- expression(phi1[I])
+      # }else if(y[j]=="FoPrime"){
+      #   y_label_temp <- "F0'"
+      # }else if(y[j]=="Fs"){
+      #   y_label_temp <- "Fs"
+      # }else if(y[j]=="FmPrime"){
+      #   y_label_temp <- "Fm"
+      # }else if(y[j]=="SPAD"){
+      #   y_label_temp <- "SPAD"
+      # }else if(y[j]=="AmbientHumidity"){
+      #   y_label_temp <- "Relative Humidity"
+      # }else if(y[j]=="LeafTemp"){
+      #   y_label_temp <- "Leaf Temperature"
+      # }else if(y[j]=="LeafAngle"){
+      #   y_label_temp <- "Leaf Angle"
+      # }else if(y[j]=="LEF"){
+      #   y_label_temp <- "LEF"
+      # }else if(y[j]=="LightIntensityPAR"){
+      #   y_label_temp <- "Light Intensity"
+      # }else if(y[j]=="NPQt"){
+      #   y_label_temp <- expression(NPQ[T])
+      # }else if(y[j]=="RelativeChlorophyll"){
+      #   y_label_temp <- "SPAD"
+      # }
 
       p1 <- ggplot() + geom_point(data = OriginalDataPlot,
                                   mapping = aes(OriginalDataPlot[[x[i]]], OriginalDataPlot[[y[j]]],
@@ -1605,7 +1607,7 @@ BlockSplit <- function(x, blockName, label, discard = FALSE){ # This function se
   }
 }
 
-# this function devide the input data into train and test sets
+# This function devide the input data into train and test blocks
 train.test.generation <- function(data=NULL, x=NULL, y=NULL,label=NULL,defaultLabel=NULL, block=NULL, orderby=NULL,testBlockProp=0.2){
   valueTransferData_sds <-PhenoPro7::TransferData(data = data, x = x, y = y, label=label, block=block, orderby = orderby)
   WorkingData_sds<- valueTransferData_sds$data
@@ -1665,8 +1667,9 @@ test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model =
   x_temp<- x
   y_temp <- y
   if(feature_selection != "PCA"){
-  x <- intersect(x_temp, topFeatureFullNames)
-  y <- intersect(y_temp, topFeatureFullNames)}
+     x <- intersect(x_temp, topFeatureFullNames)
+     y <- intersect(y_temp, topFeatureFullNames)
+  }
   blockUniqueNames <- unique(WorkingData[[block]])
   #blockOrderedNames <- mixedsort(blockUniqueNames)
   #labelUniqueNames <- unique(WorkingData[[label]])
@@ -1675,6 +1678,8 @@ test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model =
   inputData_temp<-NULL
   #features <- c(x, y)
   features <- union(x, y)
+  #Here, the testing blocks are sent to the bayes function one by one and then after
+  #transforming all testing blocks, they are concatenated.
   for(i in 1:length(blockUniqueNames)){
     # One testing block is selected
     block_temp<- WorkingData[which(WorkingData$blockTemp==blockUniqueNames[i]),]
@@ -1877,8 +1882,8 @@ test.unseen.pheno<-function(WorkingData=NULL, predictive_model=NULL, pca_model =
 }
 
 # After training a model and testing the model using test blocks, this function gets
-# gets the predictions (out put of the "test.unseen.pheno") and actual labels and calculate the performance
-calc.performance<-function(blocks_labels_preds=NULL, labels=NULL, pos_label="D"){
+# gets the predictions (out put of the "test.unseen.pheno") as well as the actual labels and then it calculates the performance
+calc.performance<-function(blocks_labels_preds=NULL, labels=NULL, pos_label=NULL){
   blockUniqueNames<-unique(blocks_labels_preds$block)
   block_based_res<-data.frame(matrix(0, nrow = length(blockUniqueNames), ncol = 7)) # Columns are: block name, II, DD, DI, ID, performance, precision and recall
   block_based_res[,1]<- blockUniqueNames
@@ -1900,119 +1905,294 @@ calc.performance<-function(blocks_labels_preds=NULL, labels=NULL, pos_label="D")
   accuracy<-0
   sensitivity <-0
   false_p_rate<-0
-  for(j in 1:nrow(blocks_labels_preds)){
-    if(blocks_labels_preds$par.pred[j] == blocks_labels_preds$keys[j]){
-      if(blocks_labels_preds$par.pred[j] != pos_label){
-        true_negative <- true_negative + 1
+  labelUniques <- unique(blocks_labels_preds$keys)
+  if(length(labelUniques)==2){
+    for(j in 1:nrow(blocks_labels_preds)){
+      if(blocks_labels_preds$par.pred[j] == blocks_labels_preds$keys[j]){
+        if(blocks_labels_preds$par.pred[j] != pos_label){
+          true_negative <- true_negative + 1
+        }else{
+          true_positive <- true_positive + 1
+        }
       }else{
-        true_positive <- true_positive + 1
-      }
-    }else{
-      if(blocks_labels_preds$par.pred[j]==pos_label){
-        false_positive <- false_positive + 1
-      }else{
-        false_negative <- false_negative + 1
+        if(blocks_labels_preds$par.pred[j]==pos_label){
+          false_positive <- false_positive + 1
+        }else{
+          false_negative <- false_negative + 1
+        }
       }
     }
+    accuracy_samples <- (true_negative+true_positive)/(true_negative+true_positive+false_negative+false_positive)
+    precision_samples <-  (true_positive)/(true_positive+false_positive)
+    recall_samples <- (true_positive)/(true_positive+false_negative)
+  }else if(length(labelUniques)>2){
+    confusion_matrix <- matrix(0,nrow = length(labelUniques),ncol = length(labelUniques))
+    rownames(confusion_matrix) <- labelUniques
+    colnames(confusion_matrix) <- labelUniques
+    for(j in 1:nrow(blocks_labels_preds)){
+      confusion_matrix[which(row.names(confusion_matrix)==blocks_labels_preds$keys[j]),which(colnames(confusion_matrix)==blocks_labels_preds$par.pred[j])]=confusion_matrix[which(row.names(confusion_matrix)==blocks_labels_preds$keys[j]),which(colnames(confusion_matrix)==blocks_labels_preds$par.pred[j])]+1
+    }
+    precision_samples <- 0
+    recall_samples <- 0
+    f1_samples <- 0
+    precision_temp <- 0
+    recall_temp <- 0
+    f1_temp <- 0
+    accuracy_samples <- sum(diag(confusion_matrix))/sum(confusion_matrix)
+    # In binary classification, we simply found if the current block is a TP, TN, FP or FN.
+    # Here, we are dealing with a multiclass classification.
+    # Given that a given row of the matrix corresponds to specific value for the "truth", we have:
+    # Precision_i= M_ii/ Sigma(Mji) which means precision for label i is the value in the i,i entry in
+    # the confusion matrix devided by sum of column i
+    # To calculate the recall we use sum of row i
+    for(ind_temp in 1:length(labelUniques)){
+      precision_temp <- (confusion_matrix[which(row.names(confusion_matrix)==labelUniques[ind_temp]),which(colnames(confusion_matrix)==labelUniques[ind_temp])])/sum(confusion_matrix[,which(colnames(confusion_matrix)==labelUniques[ind_temp])])
+      recall_temp <-  (confusion_matrix[which(row.names(confusion_matrix)==labelUniques[ind_temp]),which(colnames(confusion_matrix)==labelUniques[ind_temp])])/sum(confusion_matrix[which(row.names(confusion_matrix)==labelUniques[ind_temp]),])
+      if(is.na(precision_temp)){
+        precision_temp <- 0
+      }
+      if(is.na(recall_temp)){
+        recall_temp <- 0
+      }
+      precision_samples <- precision_samples + precision_temp
+      recall_samples <- recall_samples + recall_temp
+      f1_samples <- f1_samples + 2* (precision_temp * recall_temp) / (precision_temp + recall_temp)
+    }
+    precision_samples <- precision_samples/length(labelUniques)
+    recall_samples <- recall_samples/length(labelUniques)
+    f1_samples <- f1_samples / length(labelUniques)
   }
-  accuracy_samples <- (true_negative+true_positive)/(true_negative+true_positive+false_negative+false_positive)
-  precision_samples <-  (true_positive)/(true_positive+false_positive)
-  recall_samples <- (true_positive)/(true_positive+false_negative)
   sample_base_res <- as.data.frame(matrix(0,nrow = 1,ncol = 4))
   colnames(sample_base_res) <- c("Accuracy", "Precision", "Recall", "Size")
   sample_base_res[1,1] <- accuracy_samples
   sample_base_res[1,2] <- precision_samples
   sample_base_res[1,3] <- recall_samples
   sample_base_res[1,4] <- nrow(blocks_labels_preds)
+  if(length(labelUniques)==2){
+     for(ind_per in 1:length(blockUniqueNames)){
+       # One block is selected
+        blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
+        block_voted_label <- names(which.max(table(blocks_labels_preds_temp$par.pred)))
+        block_actual_label <- names(which.max(table(blocks_labels_preds_temp$keys)))
+        if(block_voted_label== block_actual_label){
+          if(block_voted_label != pos_label){
+            TN <- TN+1
+            block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,2] <- 1
+          }else{
+            TP<-TP+1
+            block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,3] <- 1
+          }
+        }else{
+          if(block_voted_label==pos_label){
+            FP <- FP+1
+            block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,5] <- 1
+          }else{
+            FN <- FN+1
+            block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,4] <- 1
+          }
+        }
+        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,6]<- block_actual_label
+        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,7]<- nrow(blocks_labels_preds_temp)
+      }
+     performance_t <- (TP+TN)/(TP+TN+FP+FN)
+     precision_t <- (TP)/(TP+FP)
+     recall_t<- (TP)/(TP+FN)
+     tp_t<-TP
+     tn_t<-TN
+     fp_t<-FP
+     fn_t<-FN
+     block_based_res <- replace(block_based_res, is.na(block_based_res), 0)
+  }else if(length(labelUniques)>2){
+     confusion_matrix_blocks <- matrix(0,nrow = length(labelUniques),ncol = length(labelUniques))
+     rownames(confusion_matrix_blocks) <- labelUniques
+     colnames(confusion_matrix_blocks) <- labelUniques
+     for(ind_per in 1:length(blockUniqueNames)){
+       # One block is selected
+       blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
+       block_voted_label <- names(which.max(table(blocks_labels_preds_temp$par.pred)))
+       block_actual_label <- names(which.max(table(blocks_labels_preds_temp$keys)))
+       confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)==block_actual_label),which(colnames(confusion_matrix_blocks)==block_voted_label)] <- confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)==block_actual_label),which(colnames(confusion_matrix_blocks)==block_voted_label)] +1
 
-  for(ind_per in 1:length(blockUniqueNames)){
-    # One block is selected
-    blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
-    block_voted_label <- names(which.max(table(blocks_labels_preds_temp$par.pred)))
-    block_actual_label <- names(which.max(table(blocks_labels_preds_temp$keys)))
-    if(block_voted_label== block_actual_label){
-      if(block_voted_label != pos_label){
-        TN <- TN+1
-        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,2] <- 1
-      }else{
-        TP<-TP+1
-        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,3] <- 1
-      }
-    }else{
-      if(block_voted_label==pos_label){
-        FP <- FP+1
-        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,5] <- 1
-      }else{
-        FN <- FN+1
-        block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,4] <- 1
-      }
-    }
-    block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,6]<- block_actual_label
-    block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,7]<- nrow(blocks_labels_preds_temp)
+       if(block_voted_label== block_actual_label){
+         if(block_voted_label != pos_label){
+           block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,2] <- 1
+         }else{
+           block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,3] <- 1
+         }
+       }else{
+         if(block_voted_label==pos_label){
+           block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,5] <- 1
+         }else{
+           block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,4] <- 1
+         }
+       }
+       block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,6]<- block_actual_label
+       block_based_res[(which(block_based_res$block_name==blockUniqueNames[ind_per])) ,7]<- nrow(blocks_labels_preds_temp)
+     }
+     #After looking at all blocks and creating confusion matrix, here I calc performance using the confusion matrix
+     avg_tp <- sum(diag(confusion_matrix_blocks))/length(labelUniques)
+     avg_tn <- 0
+     avg_fp <- 0
+     avg_fn <- 0
+     performance_t <- sum(diag(confusion_matrix_blocks))/sum(confusion_matrix_blocks)
+     precision_t <- 0
+     recall_t <- 0
+     # TP, TN, FP and FN are different for different classes. We average them and report them as the final values.
+     # The total number of FPs for a class is the sum of values in the corresponding column (excluding the TP which is on the main diagonal).
+     # The total number of FNs for a class is the sum of values in the corresponding row  (excluding the TP which is on the main diagonal).
+     # The total number of TNs for a class is the sum of all columns and rows excluding that class's column and row.
+     for(ind_temp in 1:length(labelUniques)){
+       avg_tn <- avg_tn +  sum(confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)!= labelUniques[ind_temp]) , which(colnames(confusion_matrix_blocks)!= labelUniques[ind_temp])])
+       avg_fn <- avg_fn + sum(confusion_matrix_blocks[which(row.names(confusion_matrix_blocks) == labelUniques[ind_temp]) , ]) - confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)== labelUniques[ind_temp]) , which(colnames(confusion_matrix_blocks)== labelUniques[ind_temp])]
+       avg_fp <- avg_fp + sum(confusion_matrix_blocks[,which(colnames(confusion_matrix_blocks) == labelUniques[ind_temp]) ]) - confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)== labelUniques[ind_temp]) , which(colnames(confusion_matrix_blocks)== labelUniques[ind_temp])]
+       precision_temp <- (confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)==labelUniques[ind_temp]),which(colnames(confusion_matrix_blocks)==labelUniques[ind_temp])])/sum(confusion_matrix_blocks[,which(colnames(confusion_matrix_blocks)==labelUniques[ind_temp])])
+       recall_temp <- (confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)==labelUniques[ind_temp]),which(colnames(confusion_matrix_blocks)==labelUniques[ind_temp])])/sum(confusion_matrix_blocks[which(row.names(confusion_matrix_blocks)==labelUniques[ind_temp]),])
+       if(is.na(precision_temp)){
+         precision_temp <- 0
+       }
+       if(is.na(recall_temp)){
+         recall_temp <- 0
+       }
+       precision_t <- precision_t + precision_temp
+       recall_t <- recall_t + recall_temp
+     }
+     precision_t <- precision_t / length(labelUniques)
+     recall_t <- recall_t / length(labelUniques)
+     avg_tn <- avg_tn/ length(labelUniques)
+     avg_fn <- avg_fn/ length(labelUniques)
+     avg_fp <- avg_fp/ length(labelUniques)
+
+     #precision_t <- (avg_tp)/(avg_tp+avg_fp)
+     #recall_t<- (avg_tp)/(avg_tp+avg_fn)
+     tp_t<-avg_tp
+     tn_t<-avg_tn
+     fp_t<-avg_fp
+     fn_t<-avg_fn
+     block_based_res <- replace(block_based_res, is.na(block_based_res), 0)
   }
-  performance_t <- (TP+TN)/(TP+TN+FP+FN)
-  precision_t <- (TP)/(TP+FP)
-  recall_t<- (TP)/(TP+FN)
-  tp_t<-TP
-  tn_t<-TN
-  fp_t<-FP
-  fn_t<-FN
-  block_based_res <- replace(block_based_res, is.na(block_based_res), 0)
-
 
   #==================================================Block based detailed results
   block_based_res_detail <- data.frame(matrix(0, nrow = length(blockUniqueNames), ncol = 11))
   block_based_res_detail[,1]<- blockUniqueNames
   colnames(block_based_res_detail)<-c("block_name", "TN", "TP", "FN","FP","label","size","accracy", "precision", "recall", "F1-Score")
   rownames(block_based_res_detail)<- blockUniqueNames
+  if(length(labelUniques)==2){
+    for(ind_per in 1:length(blockUniqueNames)){
+      # One block is selected
+      blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
+      block_actual_label <- names(which.max(table(blocks_labels_preds_temp$keys)))
+      true_positive_detailed<-0
+      true_negative_detailed<-0
+      false_positive_detailed<-0
+      false_negative_detailed<-0
+      accuracy_temp_detailed<-0
+      precision_temp_detailed <-0
+      recall_temp_detailed <-0
+      F1_temp_detailed <-0
+      for(j in 1:nrow(blocks_labels_preds_temp)){
+          if(blocks_labels_preds_temp$par.pred[j] == blocks_labels_preds_temp$keys[j]){
+            if(blocks_labels_preds_temp$par.pred[j] != pos_label){
+              true_negative_detailed <- true_negative_detailed + 1
+              #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,2] <- 1
+            }else{
+              true_positive_detailed <- true_positive_detailed + 1
+              #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,3] <- 1
+            }
+          }else{
+            if(blocks_labels_preds_temp$par.pred[j]==pos_label){
+              false_positive_detailed <- false_positive_detailed + 1
+              #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,5] <- 1
+            }else{
+              false_negative_detailed <- false_negative_detailed + 1
+              #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,4] <- 1
+            }
+          }
+        }
+        accuracy_temp_detailed <- (true_negative_detailed+true_positive_detailed)/(true_negative_detailed+true_positive_detailed+false_negative_detailed+false_positive_detailed)
+        precision_temp_detailed <- (true_positive_detailed)/(true_positive_detailed+false_positive_detailed)
+        recall_temp_detailed <- (true_positive_detailed)/(true_positive_detailed+false_negative_detailed)
+        F1_temp_detailed <- 2 * (precision_temp_detailed*recall_temp_detailed)/(precision_temp_detailed+recall_temp_detailed)
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,2] <- true_negative_detailed
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,3] <- true_positive_detailed
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,4] <- false_negative_detailed
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,5] <- false_positive_detailed
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,6]<- block_actual_label
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,7]<- nrow(blocks_labels_preds_temp)
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,8]<- accuracy_temp_detailed
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,9]<- precision_temp_detailed
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,10]<- recall_temp_detailed
+        block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,11]<- F1_temp_detailed
 
-  for(ind_per in 1:length(blockUniqueNames)){
-    # One block is selected
-    blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
-    block_actual_label <- names(which.max(table(blocks_labels_preds_temp$keys)))
-    true_positive_detailed<-0
-    true_negative_detailed<-0
-    false_positive_detailed<-0
-    false_negative_detailed<-0
-    accuracy_temp_detailed<-0
-    precision_temp_detailed <-0
-    recall_temp_detailed <-0
-    F1_temp_detailed <-0
-    for(j in 1:nrow(blocks_labels_preds_temp)){
-      if(blocks_labels_preds_temp$par.pred[j] == blocks_labels_preds_temp$keys[j]){
-        if(blocks_labels_preds_temp$par.pred[j] != pos_label){
-          true_negative_detailed <- true_negative_detailed + 1
-          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,2] <- 1
-        }else{
-          true_positive_detailed <- true_positive_detailed + 1
-          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,3] <- 1
         }
-      }else{
-        if(blocks_labels_preds_temp$par.pred[j]==pos_label){
-          false_positive_detailed <- false_positive_detailed + 1
-          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,5] <- 1
-        }else{
-          false_negative_detailed <- false_negative_detailed + 1
-          #block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,4] <- 1
-        }
+        block_based_res_detail <- replace(block_based_res_detail, is.na(block_based_res_detail), 0)
+  }else if(length(labelUniques)>2){
+    for(ind_per in 1:length(blockUniqueNames)){
+      blocks_labels_preds_temp <- blocks_labels_preds[which(blocks_labels_preds$blockTemp == blockUniqueNames[ind_per]),]
+      block_actual_label <- names(which.max(table(blocks_labels_preds_temp$keys)))
+      true_positive_detailed<-0
+      true_negative_detailed<-0
+      false_positive_detailed<-0
+      false_negative_detailed<-0
+      accuracy_temp_detailed<-0
+      precision_temp_detailed <-0
+      recall_temp_detailed <-0
+      F1_temp_detailed <-0
+
+      confusion_matrix_detailed <- matrix(0,nrow = length(labelUniques),ncol = length(labelUniques))
+      rownames(confusion_matrix_detailed) <- labelUniques
+      colnames(confusion_matrix_detailed) <- labelUniques
+      for(j in 1:nrow(blocks_labels_preds_temp)){
+        confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==blocks_labels_preds_temp$keys[j]),which(colnames(confusion_matrix_detailed)==blocks_labels_preds_temp$par.pred[j])]=confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==blocks_labels_preds_temp$keys[j]),which(colnames(confusion_matrix_detailed)==blocks_labels_preds_temp$par.pred[j])]+1
       }
+      precision_detailed <- 0
+      recall_detailed <- 0
+      F1_detailed <- 0
+      accuracy_detailed <- sum(diag(confusion_matrix_detailed))/sum(confusion_matrix_detailed)
+      avg_tp <- sum(diag(confusion_matrix_detailed))#/length(labelUniques)
+      avg_tn <- 0
+      avg_fp <- 0
+      avg_fn <- 0
+      current_label <- unique(blocks_labels_preds_temp$keys)
+      precision_detailed <- (confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==current_label),which(colnames(confusion_matrix_detailed)==current_label)])/sum(confusion_matrix_detailed[,which(colnames(confusion_matrix_detailed)==current_label)])
+      recall_detailed <- (confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==current_label),which(colnames(confusion_matrix_detailed)==current_label)])/sum(confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==current_label),])
+      F1_detailed <- 2*(precision_detailed * recall_detailed)/(precision_detailed + recall_detailed)
+      avg_tn <-  sum(confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)!= current_label) , which(colnames(confusion_matrix_detailed)!= current_label)])
+      avg_fn <- sum(confusion_matrix_detailed[which(row.names(confusion_matrix_detailed) == current_label) , ]) - confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)== current_label) , which(colnames(confusion_matrix_detailed)== current_label)]
+      avg_fp <- sum(confusion_matrix_detailed[,which(colnames(confusion_matrix_detailed) == current_label)]) - confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)== current_label) , which(colnames(confusion_matrix_detailed)== current_label)]
+
+      # for(ind_temp in 1:length(labelUniques)){
+      #   precision_temp <- (confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==labelUniques[ind_temp]),which(colnames(confusion_matrix_detailed)==labelUniques[ind_temp])])/sum(confusion_matrix_detailed[,which(colnames(confusion_matrix_detailed)==labelUniques[ind_temp])])
+      #   recall_temp <- (confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==labelUniques[ind_temp]),which(colnames(confusion_matrix_detailed)==labelUniques[ind_temp])])/sum(confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)==labelUniques[ind_temp]),])
+      #   if(is.na(precision_temp)){
+      #     precision_temp <- 0
+      #   }
+      #   if(is.na(recall_temp)){
+      #     recall_temp <- 0
+      #   }
+      #   precision_detailed <- precision_detailed + precision_temp
+      #   recall_detailed <- recall_samples + recall_temp
+      #   f1_temp <- 2*(precision_temp * recall_temp)/(precision_temp+ recall_temp)
+      #   F1_detailed <- F1_detailed + f1_temp
+      #   avg_tn <-  sum(confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)!= labelUniques[ind_temp]) , which(colnames(confusion_matrix_detailed)!= labelUniques[ind_temp])])
+      #   avg_fn <- sum(confusion_matrix_detailed[which(row.names(confusion_matrix_detailed) == labelUniques[ind_temp]) , ]) - confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)== labelUniques[ind_temp]) , which(colnames(confusion_matrix_detailed)== labelUniques[ind_temp])]
+      #   avg_fp <- sum(confusion_matrix_detailed[,which(colnames(confusion_matrix_detailed) == labelUniques[ind_temp]) ]) - confusion_matrix_detailed[which(row.names(confusion_matrix_detailed)== labelUniques[ind_temp]) , which(colnames(confusion_matrix_detailed)== labelUniques[ind_temp])]
+      # }
+      # precision_detailed <- precision_detailed/length(labelUniques)
+      # recall_detailed <- recall_detailed/length(labelUniques)
+      # F1_detailed <- F1_detailed / length(labelUniques)
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,2] <- avg_tn
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,3] <- avg_tp
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,4] <- avg_fn
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,5] <- avg_fp
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,6]<- block_actual_label
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,7]<- nrow(blocks_labels_preds_temp)
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,8]<- accuracy_detailed
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,9]<- precision_detailed
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,10]<- recall_detailed
+      block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,11]<- F1_detailed
     }
-    accuracy_temp_detailed <- (true_negative_detailed+true_positive_detailed)/(true_negative_detailed+true_positive_detailed+false_negative_detailed+false_positive_detailed)
-    precision_temp_detailed <- (true_positive_detailed)/(true_positive_detailed+false_positive_detailed)
-    recall_temp_detailed <- (true_positive_detailed)/(true_positive_detailed+false_negative_detailed)
-    F1_temp_detailed <- 2 * (precision_temp_detailed*recall_temp_detailed)/(precision_temp_detailed+recall_temp_detailed)
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,2] <- true_negative_detailed
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,3] <- true_positive_detailed
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,4] <- false_negative_detailed
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,5] <- false_positive_detailed
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,6]<- block_actual_label
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,7]<- nrow(blocks_labels_preds_temp)
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,8]<- accuracy_temp_detailed
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,9]<- precision_temp_detailed
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,10]<- recall_temp_detailed
-    block_based_res_detail[(which(block_based_res_detail$block_name==blockUniqueNames[ind_per])) ,11]<- F1_temp_detailed
+      block_based_res_detail <- replace(block_based_res_detail, is.na(block_based_res_detail), 0)
   }
-  block_based_res_detail <- replace(block_based_res_detail, is.na(block_based_res_detail), 0)
   #================================================== End of block based detailed results
   returnData <- list(
     sample_base_res=sample_base_res,
