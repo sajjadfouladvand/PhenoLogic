@@ -1,3 +1,4 @@
+# Contact me if you find a bug: sjjd.fouladvand@gmail.com
 CheckArguments <- function(x, ...) UseMethod("CheckArguments")
 
 # This function checks to see if everything is fine with the input or not.
