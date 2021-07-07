@@ -64,16 +64,27 @@ method = "SVM", step = 1, width = 6, nfeatures = 10, feature_selection = "IG")
 ```
 
 The function “Pheno” has several arguments as its inputs:
+
 data: Is the input data that will be used to train the model. The default value is NULL.
- x: Represent the variables to be paired with variables in y(see next parameter). The default value is NULL.
- y: Represent the variables to be paired with variables in x. The default value is NULL.
- label: Indicates the variable that we are aiming to predict using PhenoPro. The default value is NULL.
- block: Is a variable that shows block IDs. The default value is NULL.
- orderBy: Shows the variable which should be used t order the samples. Normally, it should a time based variable.
- method: Determines which classification method should be used to create the predictive model. It can be either “SVM” for using support vector machines classifier or “RF” for Random Forest classifier or “Ensemble” for combination of SVMs. The default value is “SVM”.
+
+x: Represent the variables to be paired with variables in y(see next parameter). The default value is NULL.
+
+y: Represent the variables to be paired with variables in x. The default value is NULL.
+
+label: Indicates the variable that we are aiming to predict using PhenoPro. The default value is NULL.
+
+block: Is a variable that shows block IDs. The default value is NULL.
+
+orderBy: Shows the variable which should be used t order the samples. Normally, it should a time based variable.
+
+method: Determines which classification method should be used to create the predictive model. It can be either “SVM” for using support vector machines classifier or “RF” for Random Forest classifier or “Ensemble” for combination of SVMs. The default value is “SVM”.
+
 step: The default value is 1.
+
 width: The size of the window will be 2 multiples by width. The default value is 6.
+
 nfeatures: It defines either the number of principal components when “PCA” is used as dimensionality reduction method or the number of top features that PhenoPro should use when a feature selection method is used (refer to the next argument, feature_selection). The default value is 3.
+
 feature_selection: It defines the feature selection method which will be used to find the optimal subset of features. The options are: “lmFuncs” for linear regression based feature subset selection, “rfFuncs” for random forest based feature subset selection, “treeBagFuncs” for bagged tree based feature subset selection, “bnFuncs” for naïve bayes based feature subset selection, “PCA” for principle component analysis, “IG” for information gain based method, “Ensemble of SVMs” for a pair-wise feature selection method using SVM, and “NA” for no feature selection which is in fact using the whole feature set. The default value is “lmFuncs”.
 The trained model should be tested using unseen samples, therefore we need to separate the labels from testing data set:
 
