@@ -82,7 +82,9 @@ The trained model should be tested using unseen samples, therefore we need to se
 We then send this unseen testing set to PhenoPro to predict the labels:
 
 ```cvres<- PhenoPro7::test.unseen.pheno(WorkingData =unseen_data , predictive_model = res$pre, pca_model = res$resPCA, scales_matrix = res$scales_matrix, weak_classifiers=res$weak_classifiers, bst = res$bst,label_mapping = res$label_mapping , nfeatures=res$nfeatures,feature_selection = res$feature_selection,block = res$arg$block, block_orig= c("NewBlockNameOne", "NewBlockNameTwo"),orderby = res$arg$orderby, step=1, width=6, method = res$arg$method, defaultLabel = res$arg$defaultLabel, topFeatureFullNames = res$feaf, topFeatureNames = res$fea, x=res$arg$x, y=res$arg$y, prior = FALSE)```
+
 Eventually we give the PheoPro package the predicted labels and actual labels to measure the performance on the testing data.
+
 ```perf<- PhenoPro7::calc.performance(cvres$blocks_labels_preds, data_all_sep$test.set$Treatment, pos_label="D")```
 
 Now, the object perf include various measurements:
