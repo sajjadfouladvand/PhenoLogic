@@ -4,8 +4,11 @@ This project was supported by the National Science Foundation ABI program (grant
 Install PhenoPro version 7 using the following commands:
 
 ```install.packages("devtools")```
+
 ```library(devtools)```
+
 ```install_github("sajjadfouladvand/PhenoPro7")```
+
 ```library(PhenoPro7)```
 
 Although required packages should be automatically added while you installed PhenoPro, we recommend you run the following lines of code to make sure you have all required packages loaded:
