@@ -12,23 +12,37 @@ Install PhenoPro version 7 using the following commands:
 ```library(PhenoPro7)```
 
 Although required packages should be automatically added while you installed PhenoPro, we recommend you run the following lines of code to make sure you have all required packages loaded:
+
 ```library(ggplot2)```
+
 ```library(MASS)```
+
 ```library(e1071)```
+
 ```library(randomForest)```
+
 ```library(gridExtra)```
+
 ```library(gtools)```
+
 ```library(viridis)```
+
 ```library(ggthemes)```
+
 ```library(FSelector)```
+
 ```library(xgboost)```
+
 <h1 style="font-size:60px;">2. Load sample data and test package installation</h1>
+
 This manual use RN data set. Following lines of code extract RN Early Resistant data out of entire RN data set, however, you can select each parts of the data you want to analysis:
+
  ```setwd("directory of your data")```
 ```data_all <- read.table("RN.csv", header = T, sep=",")```
 ```data_clean <- data_all[which(data_all$Issues == 0),]```
 ```data <- subset (data_clean, (Stage == "WPI1"| Stage == "WPI2") & (Entry==885))```
 ```data_new <- PhenoPro7::BlockSplit(x = data, blockName = c("BlkTempC","PlantC"), label = "Treatment", discard = FALSE)```
+
 Then, you can randomly divide the data set into train and test set using:
 ```data_all_sep <- PhenoPro7::train.test.generation(data=data_new,x=c("AmbientHumidity", "LeafTemp", "LeafAngle", "LEF", "LightIntensityPAR"), y=c("NPQt", "Phi2","PhiNO","PhiNPQ","RelativeChlorophyll"), label="Treatment", defaultLabel = "D", block= c("NewBlockNameOne","NewBlockNameTwo"), orderby ="TimeofDay", testBlockProp = 0.1 )```
 After generating training and test sets, you need to train PhenoPro using the training data:
