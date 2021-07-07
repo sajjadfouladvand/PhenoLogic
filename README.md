@@ -1,13 +1,13 @@
-# PhenoLogic
-
 This project was supported by the National Science Foundation ABI program (grant no. 1458556, 1716340) and the University of Kentucky. Please follow the manual to use PhenoLogic.
 
 <h1 style="font-size:60px;">1. Package installation</h1>
 Install PhenoPro version 7 using the following commands:
+
 ```install.packages("devtools")```
 ```library(devtools)```
 ```install_github("sajjadfouladvand/PhenoPro7")```
 ```library(PhenoPro7)```
+
 Although required packages should be automatically added while you installed PhenoPro, we recommend you run the following lines of code to make sure you have all required packages loaded:
 ```library(ggplot2)```
 ```library(MASS)```
